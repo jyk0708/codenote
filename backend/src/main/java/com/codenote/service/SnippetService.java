@@ -88,4 +88,20 @@ public class SnippetService {
     public List<Snippet> searchSnippets(UUID userId, String keyword) {
         return snippetRepository.searchByKeyword(userId, keyword);
     }
+
+    public List<Snippet> getFavoriteSnippets(UUID userId) {
+        return snippetRepository.findByUserIdAndFavoriteTrueOrderByUpdatedAtDesc(userId);
+    }
+
+    public Snippet toggleFavorite(UUID userId, UUID id) {
+        Snippet snippet = snippetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Snippet not found"));
+
+        if (!snippet.getUserId().equals(userId)) {
+            throw new RuntimeException("Not authorized");
+        }
+
+        snippet.setFavorite(snippet.getFavorite() == null || !snippet.getFavorite());
+        return snippetRepository.save(snippet);
+    }
 }

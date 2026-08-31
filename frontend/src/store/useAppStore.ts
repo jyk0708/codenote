@@ -16,6 +16,7 @@ import {
   categoryApi,
   snippetApi,
   annotationApi,
+  fileApi,
 } from "@/lib/api";
 
 const ANNOTATION_COLORS: AnnotationColor[] = [
@@ -69,6 +70,7 @@ interface AppState {
   updateSnippet: (id: string, updates: Partial<Snippet>) => Promise<void>;
   deleteSnippet: (id: string) => Promise<void>;
   selectSnippet: (id: string | null) => void;
+  toggleFavorite: (id: string) => Promise<void>;
 
   // 操作 - 注释
   addAnnotation: (
@@ -92,6 +94,7 @@ interface AppState {
   getCurrentSnippet: () => Snippet | null;
   getCurrentCategory: () => Category | null;
   getNextAnnotationColor: (snippetId: string) => AnnotationColor;
+  cleanupOrphanedFiles: () => Promise<number>;
 }
 
 // 将后端数据转换为前端类型
@@ -115,6 +118,7 @@ function mapSnippet(data: any): Snippet {
     description: data.description || "",
     tags: data.tags || [],
     categoryId: data.categoryId ? String(data.categoryId) : null,
+    favorite: data.favorite || false,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
@@ -142,12 +146,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   userNickname: null,
   isLoading: true,
 
-  // 初始数据（使用 mock 作为未登录时的演示）
-  categories: mockCategories,
-  snippets: mockSnippets,
-  annotations: mockAnnotations,
-  selectedCategoryId: mockCategories[0]?.id || null,
-  selectedSnippetId: mockSnippets[0]?.id || null,
+  // 初始数据为空，等 checkAuth 确定登录状态后再加载
+  categories: [],
+  snippets: [],
+  annotations: [],
+  selectedCategoryId: null,
+  selectedSnippetId: null,
   selectedAnnotationId: null,
 
   layout: {
@@ -164,10 +168,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     const email = localStorage.getItem("userEmail");
     const nickname = localStorage.getItem("userNickname");
     if (token && email) {
-      set({ isLoggedIn: true, userEmail: email, userNickname: nickname });
+      // 已登录：保持 isLoading=true，加载真实数据
+      set({ isLoggedIn: true, userEmail: email, userNickname: nickname, isLoading: true });
       get().loadAllData();
     } else {
-      set({ isLoading: false });
+      // 未登录：加载 mock 演示数据
+      set({
+        isLoggedIn: false,
+        isLoading: false,
+        categories: mockCategories,
+        snippets: mockSnippets,
+        annotations: mockAnnotations,
+        selectedCategoryId: mockCategories[0]?.id || null,
+        selectedSnippetId: mockSnippets[0]?.id || null,
+        selectedAnnotationId: null,
+      });
     }
   },
 
@@ -247,8 +262,27 @@ export const useAppStore = create<AppState>((set, get) => ({
         selectedAnnotationId: null,
         isLoading: false,
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load data:", err);
+      // Token 过期或无效，清除登录状态回到登录页
+      if (err?.status === 401 || err?.status === 403) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userNickname");
+        set({
+          isLoggedIn: false,
+          userEmail: null,
+          userNickname: null,
+          isLoading: false,
+          categories: mockCategories,
+          snippets: mockSnippets,
+          annotations: mockAnnotations,
+          selectedCategoryId: mockCategories[0]?.id || null,
+          selectedSnippetId: mockSnippets[0]?.id || null,
+          selectedAnnotationId: null,
+        });
+        return;
+      }
       set({ isLoading: false });
     }
   },
@@ -471,6 +505,43 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectSnippet: (id) =>
     set({ selectedSnippetId: id, selectedAnnotationId: null }),
 
+  toggleFavorite: async (id) => {
+    const { isLoggedIn, snippets } = get();
+    const snippet = snippets.find((s) => s.id === id);
+    if (!snippet) return;
+
+    // 乐观更新
+    const newFavorite = !snippet.favorite;
+    set((state) => ({
+      snippets: state.snippets.map((s) =>
+        s.id === id ? { ...s, favorite: newFavorite } : s
+      ),
+    }));
+
+    if (!isLoggedIn) {
+      return;
+    }
+
+    try {
+      const data = await snippetApi.toggleFavorite(id);
+      const serverSnippet = mapSnippet(data);
+      set((state) => ({
+        snippets: state.snippets.map((s) =>
+          s.id === id ? serverSnippet : s
+        ),
+      }));
+    } catch (err) {
+      // 失败回滚
+      set((state) => ({
+        snippets: state.snippets.map((s) =>
+          s.id === id ? { ...s, favorite: snippet.favorite } : s
+        ),
+      }));
+      console.error("Failed to toggle favorite:", err);
+      throw err;
+    }
+  },
+
   // --- 注释操作 ---
   addAnnotation: async (snippetId, startOffset, endOffset) => {
     const { isLoggedIn, getNextAnnotationColor } = get();
@@ -563,26 +634,31 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   deleteAnnotation: async (id) => {
-    const { isLoggedIn, annotations } = get();
+    const { isLoggedIn, annotations, selectedAnnotationId } = get();
     const annot = annotations.find((a) => a.id === id);
 
-    if (!isLoggedIn) {
-      set((state) => ({
-        annotations: state.annotations.filter((a) => a.id !== id),
-        selectedAnnotationId:
-          state.selectedAnnotationId === id ? null : state.selectedAnnotationId,
-      }));
-      return;
-    }
-
-    if (annot) {
-      await annotationApi.delete(annot.snippetId, id);
-    }
+    // 先乐观更新本地状态
     set((state) => ({
       annotations: state.annotations.filter((a) => a.id !== id),
       selectedAnnotationId:
         state.selectedAnnotationId === id ? null : state.selectedAnnotationId,
     }));
+
+    if (!isLoggedIn || !annot) {
+      return;
+    }
+
+    try {
+      await annotationApi.delete(annot.snippetId, id);
+    } catch (e) {
+      console.error("Delete annotation error:", e);
+      // 删除失败时回滚（把注释加回来）
+      set((state) => ({
+        annotations: [...state.annotations, annot],
+        selectedAnnotationId: selectedAnnotationId,
+      }));
+      throw e;
+    }
   },
 
   selectAnnotation: (id) => set({ selectedAnnotationId: id }),
@@ -640,5 +716,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       (a) => a.snippetId === snippetId
     ).length;
     return ANNOTATION_COLORS[count % ANNOTATION_COLORS.length];
+  },
+
+  cleanupOrphanedFiles: async () => {
+    const { isLoggedIn } = get();
+    if (!isLoggedIn) {
+      throw new Error("请先登录");
+    }
+    const result = await fileApi.cleanup();
+    return result.deletedCount;
   },
 }));

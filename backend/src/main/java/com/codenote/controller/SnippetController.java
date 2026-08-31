@@ -25,8 +25,12 @@ public class SnippetController {
     public ResponseEntity<List<Snippet>> getSnippets(
             @AuthenticationPrincipal UUID userId,
             @RequestParam(required = false) UUID categoryId,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean favorite) {
 
+        if (favorite != null && favorite) {
+            return ResponseEntity.ok(snippetService.getFavoriteSnippets(userId));
+        }
         if (search != null && !search.isEmpty()) {
             return ResponseEntity.ok(snippetService.searchSnippets(userId, search));
         }
@@ -57,5 +61,11 @@ public class SnippetController {
                                                @PathVariable UUID id) {
         snippetService.deleteSnippet(userId, id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/favorite")
+    public ResponseEntity<Snippet> toggleFavorite(@AuthenticationPrincipal UUID userId,
+                                                   @PathVariable UUID id) {
+        return ResponseEntity.ok(snippetService.toggleFavorite(userId, id));
     }
 }

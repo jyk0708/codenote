@@ -20,6 +20,7 @@ export interface Snippet {
   description?: string;
   tags: string[];
   categoryId: string | null;
+  favorite?: boolean;
   createdAt: string;
   updatedAt: string;
 }

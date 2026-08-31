@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { renderMarkdown, offsetToLine } from "@/lib/utils";
+import { renderMarkdown, offsetToLine, renderMermaidInContainer } from "@/lib/utils";
 import { fileApi } from "@/lib/api";
 import {
   MessageSquare,
@@ -211,12 +211,22 @@ export default function AnnotationPanel() {
     [allAnnotations, updateAnnotation]
   );
 
-  // 渲染 Markdown（带图片尺寸语法支持）
-  const renderPreviewContent = (markdown: string, annotId: string) => {
-    const html = renderMarkdown(markdown);
+  // 渲染 Markdown（带图片尺寸语法 + mermaid 支持）
+  const MarkdownPreview = ({ markdown, annotId }: { markdown: string; annotId: string }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const html = useMemo(() => renderMarkdown(markdown), [markdown]);
+
+    useEffect(() => {
+      if (containerRef.current) {
+        renderMermaidInContainer(containerRef.current);
+      }
+    }, [html, annotId]);
+
     return (
       <div
-        className="markdown-body text-sm"
+        ref={containerRef}
+        className="markdown-body text-sm select-text"
+        style={{ userSelect: "text" }}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
@@ -312,15 +322,15 @@ export default function AnnotationPanel() {
         {/* 正文编辑区域 - 自适应高度 */}
         <div
           className={`${
-            editMode === "split" ? "grid grid-cols-2" : ""
+            editMode === "split" ? "grid grid-cols-2 min-h-[240px]" : "min-h-[200px]"
           }`}
         >
           {(editMode === "edit" || editMode === "split") && (
             <div
               className={
                 editMode === "split"
-                  ? "border-r border-slate-100 relative"
-                  : "relative"
+                  ? "border-r border-slate-100 relative h-full flex flex-col"
+                  : "relative h-full flex flex-col"
               }
             >
               <textarea
@@ -334,7 +344,7 @@ export default function AnnotationPanel() {
                 onDrop={(e) => handleDrop(e, annot.id)}
                 onDragOver={(e) => e.preventDefault()}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full min-h-[200px] p-3 bg-white text-sm font-mono text-slate-700 resize-y outline-none"
+                className="flex-1 w-full min-h-[200px] p-3 bg-white text-sm font-mono text-slate-700 resize-y outline-none"
                 placeholder="用 Markdown 编写注释...&#10;可直接粘贴截图或拖拽图片上传"
               />
               {uploadingId === annot.id && (
@@ -353,8 +363,8 @@ export default function AnnotationPanel() {
             </div>
           )}
           {(editMode === "preview" || editMode === "split") && (
-            <div className="p-3 min-h-[200px] bg-slate-50/30">
-              {renderPreviewContent(annot.contentMarkdown, annot.id)}
+            <div className="p-3 min-h-[200px] h-full bg-slate-50/30 overflow-y-auto">
+              <MarkdownPreview markdown={annot.contentMarkdown} annotId={annot.id} />
             </div>
           )}
         </div>
@@ -556,7 +566,7 @@ export default function AnnotationPanel() {
               )}
               {(popupEditMode === "preview" || popupEditMode === "split") && (
                 <div className="h-full overflow-y-auto p-3 bg-white border border-slate-200 rounded-lg">
-                  {renderPreviewContent(popupAnnot.contentMarkdown, popupAnnot.id + "-popup")}
+                  <MarkdownPreview markdown={popupAnnot.contentMarkdown} annotId={popupAnnot.id + "-popup"} />
                 </div>
               )}
             </div>

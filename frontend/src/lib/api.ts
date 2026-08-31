@@ -31,7 +31,6 @@ async function request<T>(
         const error = await response.json();
         errorMessage = error.message || error.error || errorMessage;
       } catch {
-        // JSON 解析失败，尝试读取文本
         const text = await response.text().catch(() => "");
         if (text) errorMessage = text.substring(0, 200);
       }
@@ -40,7 +39,9 @@ async function request<T>(
       if (text) errorMessage = text.substring(0, 200);
     }
 
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage) as Error & { status: number };
+    error.status = response.status;
+    throw error;
   }
 
   if (response.status === 204) {
@@ -83,10 +84,11 @@ export const categoryApi = {
 
 // --- Snippets ---
 export const snippetApi = {
-  list: (params?: { categoryId?: string; search?: string }) => {
+  list: (params?: { categoryId?: string; search?: string; favorite?: boolean }) => {
     const query = new URLSearchParams();
     if (params?.categoryId) query.set("categoryId", params.categoryId);
     if (params?.search) query.set("search", params.search);
+    if (params?.favorite) query.set("favorite", "true");
     const qs = query.toString();
     return request<any[]>(`/snippets${qs ? `?${qs}` : ""}`);
   },
@@ -103,6 +105,8 @@ export const snippetApi = {
     }),
   delete: (id: string) =>
     request<void>(`/snippets/${id}`, { method: "DELETE" }),
+  toggleFavorite: (id: string) =>
+    request<any>(`/snippets/${id}/favorite`, { method: "POST" }),
 };
 
 // --- Annotations ---
@@ -159,5 +163,10 @@ export const fileApi = {
     }
 
     return response.json();
+  },
+  cleanup: (): Promise<{ deletedCount: number; message: string }> => {
+    return request<{ deletedCount: number; message: string }>("/files/cleanup", {
+      method: "POST",
+    });
   },
 };

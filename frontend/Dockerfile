@@ -39,11 +39,16 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV TZ=Asia/Shanghai
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+
+# 后端地址（运行时环境变量，可被 docker-compose 覆盖）
+ENV NEXT_PUBLIC_BACKEND_URL=http://backend:8080
 
 # 复制 standalone 输出
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-# 创建 public 目录（如果源码中有 public 目录可以后续手动挂载）
+# 创建 public 目录
 RUN mkdir -p ./public
 
 # 运行端口

@@ -7,6 +7,7 @@ com\codenote\service\AnnotationService.class
 com\codenote\service\FileStorageService.class
 com\codenote\entity\User$UserBuilder.class
 com\codenote\repository\SnippetRepository.class
+com\codenote\controller\HealthController.class
 com\codenote\service\AuthService.class
 com\codenote\repository\AnnotationRepository.class
 com\codenote\entity\Category$CategoryBuilder.class

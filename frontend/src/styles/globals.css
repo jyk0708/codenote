@@ -1,3 +1,5 @@
+@import "highlight.js/styles/github-dark.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -215,8 +217,29 @@ body {
   padding-left: 1.5em;
 }
 
+.markdown-body ul {
+  list-style: disc;
+}
+
+.markdown-body ol {
+  list-style: decimal;
+}
+
 .markdown-body li {
   margin: 0.3em 0;
+}
+
+.markdown-body li > ul,
+.markdown-body li > ol {
+  margin: 0.3em 0;
+}
+
+.markdown-body li > ul {
+  list-style: circle;
+}
+
+.markdown-body li > ul li > ul {
+  list-style: square;
 }
 
 .markdown-body code {
@@ -304,6 +327,40 @@ body {
   margin: 0 2px;
 }
 
+/* Mermaid 图表样式 */
+.markdown-body .mermaid-container {
+  margin: 1em 0;
+  text-align: center;
+  overflow-x: auto;
+  padding: 1em;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.markdown-body .mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 确保 Markdown 内容可选 */
+.markdown-body {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.markdown-body * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 代码块文本可选 */
+.markdown-body pre,
+.markdown-body code {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 8px;
@@ -381,4 +438,12 @@ body {
 
 .animate-scaleIn {
   animation: scaleIn 0.2s ease-out;
+}
+
+/* line-clamp 工具类（兼容 Tailwind 版本差异） */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

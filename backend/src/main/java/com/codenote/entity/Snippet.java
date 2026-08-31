@@ -52,6 +52,9 @@ public class Snippet {
     @Builder.Default
     private List<String> tags = new ArrayList<>();
 
+    @Builder.Default
+    private Boolean favorite = false;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

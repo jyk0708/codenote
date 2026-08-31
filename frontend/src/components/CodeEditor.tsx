@@ -18,11 +18,14 @@ import { rust } from "@codemirror/lang-rust";
 import { markdown } from "@codemirror/lang-markdown";
 import { xml } from "@codemirror/lang-xml";
 import { useAppStore } from "@/store/useAppStore";
-import { getLanguageLabel, LANGUAGE_OPTIONS, offsetToLine } from "@/lib/utils";
+import { getLanguageLabel, LANGUAGE_OPTIONS, offsetToLine, renderMarkdown, renderMermaidInContainer } from "@/lib/utils";
 import {
   Copy,
   ChevronDown,
   Plus,
+  Edit3,
+  Eye,
+  Code,
 } from "lucide-react";
 import type { Annotation } from "@/types";
 
@@ -106,8 +109,12 @@ export default function CodeEditor() {
   const [showSelectionToolbar, setShowSelectionToolbar] = useState(false);
   const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 });
   const [selectionRange, setSelectionRange] = useState<{ from: number; to: number } | null>(null);
+  const [mdEditMode, setMdEditMode] = useState<"edit" | "split" | "preview">("split");
+  const [debouncedContent, setDebouncedContent] = useState("");
   const annotationsRef = useRef<Annotation[]>([]);
   const activeAnnotRef = useRef<string | null>(null);
+  const isAddingAnnotationRef = useRef(false);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const {
     selectedSnippetId,
@@ -122,6 +129,7 @@ export default function CodeEditor() {
   const allAnnotations = useAppStore((state) => state.annotations);
 
   const snippet = getCurrentSnippet();
+  const isMarkdown = snippet?.language === "markdown";
 
   // 使用 useMemo 缓存注释列表，避免每次渲染创建新数组导致无限重渲染
   const annotations = useMemo(() => {
@@ -173,6 +181,8 @@ export default function CodeEditor() {
     // 选区变化监听
     const selectionListener = EditorView.updateListener.of((update) => {
       if (update.selectionSet) {
+        // 添加注释时忽略选区变化，防止工具栏重新弹出
+        if (isAddingAnnotationRef.current) return;
         const { from, to } = update.state.selection.main;
         if (from !== to) {
           setSelectionRange({ from, to });
@@ -350,9 +360,16 @@ export default function CodeEditor() {
   }, [annotations, selectedAnnotationId, updateDecorations]);
 
   // 选中注释时滚动到对应位置（仅当 selectedAnnotationId 变化时执行）
+  const prevSelectedAnnotRef = useRef<string | null>(null);
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || !selectedAnnotationId || !snippet) return;
+    if (!view) return;
+
+    // 只在 selectedAnnotationId 实际变化时才滚动定位
+    if (selectedAnnotationId === prevSelectedAnnotRef.current) return;
+    prevSelectedAnnotRef.current = selectedAnnotationId;
+
+    if (!selectedAnnotationId) return;
 
     const annot = annotationsRef.current.find((a) => a.id === selectedAnnotationId);
     if (annot) {
@@ -361,11 +378,44 @@ export default function CodeEditor() {
         scrollIntoView: true,
       });
     }
-  }, [selectedAnnotationId, snippet]);
+  }, [selectedAnnotationId]);
+
+  // Markdown 预览：debounce 内容变化
+  useEffect(() => {
+    if (!isMarkdown) return;
+    const timer = setTimeout(() => {
+      setDebouncedContent(snippet?.content || "");
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [snippet?.content, isMarkdown]);
+
+  // Markdown 预览 HTML
+  const previewHtml = useMemo(() => {
+    if (!isMarkdown) return "";
+    return renderMarkdown(debouncedContent);
+  }, [debouncedContent, isMarkdown]);
+
+  // Markdown 预览：渲染 Mermaid 图表
+  useEffect(() => {
+    if (previewRef.current && isMarkdown && previewHtml) {
+      renderMermaidInContainer(previewRef.current);
+    }
+  }, [previewHtml, isMarkdown, mdEditMode]);
+
+  // 切换编辑模式时刷新 CodeMirror 布局
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !isMarkdown) return;
+    requestAnimationFrame(() => {
+      view.dispatch({});
+    });
+  }, [mdEditMode, isMarkdown]);
 
   // 添加注释
   const handleAddAnnotation = async () => {
     if (!selectionRange || !selectedSnippetId) return;
+    // 设置标志，防止选区变化重新触发工具栏
+    isAddingAnnotationRef.current = true;
     setShowSelectionToolbar(false);
     const newAnnot = await addAnnotation(
       selectedSnippetId,
@@ -375,6 +425,10 @@ export default function CodeEditor() {
     if (newAnnot) {
       selectAnnotation(newAnnot.id);
     }
+    // 延迟清除标志，让 CodeMirror 的选择事件都处理完
+    setTimeout(() => {
+      isAddingAnnotationRef.current = false;
+    }, 200);
   };
 
   // 复制代码
@@ -471,9 +525,71 @@ export default function CodeEditor() {
         </div>
       )}
 
-      {/* 代码编辑器容器 */}
-      <div className="flex-1 relative overflow-hidden">
-        <div ref={containerRef} className="h-full w-full" />
+      {/* Markdown 编辑模式切换 */}
+      {isMarkdown && (
+        <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-slate-100 bg-white">
+          <button
+            onClick={() => setMdEditMode("edit")}
+            className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+              mdEditMode === "edit"
+                ? "bg-white text-slate-700 shadow-sm border border-slate-200"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Code size={12} />
+            编辑
+          </button>
+          <button
+            onClick={() => setMdEditMode("split")}
+            className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+              mdEditMode === "split"
+                ? "bg-white text-slate-700 shadow-sm border border-slate-200"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Edit3 size={12} />
+            分屏
+          </button>
+          <button
+            onClick={() => setMdEditMode("preview")}
+            className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+              mdEditMode === "preview"
+                ? "bg-white text-slate-700 shadow-sm border border-slate-200"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Eye size={12} />
+            预览
+          </button>
+        </div>
+      )}
+
+      {/* 代码编辑器容器 + Markdown 预览 */}
+      <div className="flex-1 relative overflow-hidden flex">
+        <div
+          ref={containerRef}
+          className={`h-full ${
+            isMarkdown && mdEditMode === "preview"
+              ? "hidden"
+              : isMarkdown && mdEditMode === "split"
+              ? "w-1/2 border-r border-slate-200"
+              : "w-full"
+          }`}
+        />
+
+        {/* Markdown 预览面板 */}
+        {isMarkdown && (mdEditMode === "preview" || mdEditMode === "split") && (
+          <div
+            ref={previewRef}
+            className={`${mdEditMode === "split" ? "w-1/2" : "w-full"} overflow-y-auto bg-slate-50/30`}
+          >
+            <div
+              className="markdown-body text-sm p-4"
+              style={{ userSelect: "text" }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          </div>
+        )}
 
         {/* 选区浮动工具栏 */}
         {showSelectionToolbar && selectionRange && (

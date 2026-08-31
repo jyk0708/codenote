@@ -13,6 +13,7 @@ import {
   Minimize2,
   User,
   LogOut,
+  Image,
 } from "lucide-react";
 
 export default function AppLayout() {
@@ -27,16 +28,25 @@ export default function AppLayout() {
     logout,
     checkAuth,
     isLoading,
+    cleanupOrphanedFiles,
   } = useAppStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<"left" | "right" | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   // 初始化时检查认证状态
   useEffect(() => {
     checkAuth();
+    // 检查完后，如果未登录，自动弹出登录框
+    const unsubscribe = useAppStore.subscribe((state) => {
+      if (!state.isLoading && !state.isLoggedIn) {
+        setShowAuth(true);
+      }
+    });
+    return unsubscribe;
   }, [checkAuth]);
 
   // 初始化右侧面板宽度为屏幕的 1/3
@@ -120,6 +130,24 @@ export default function AppLayout() {
 
   const handleAuthSuccess = () => {
     setShowAuth(false);
+    // 登录成功后重新检查认证状态，加载真实数据
+    checkAuth();
+  };
+
+  const handleCleanupFiles = async () => {
+    if (!confirm("确定要清理失效的图片文件吗？\n\n此操作会扫描所有注释中引用的图片，删除 MinIO 中未被引用的文件。\n\n注意：此操作不可撤销。")) {
+      return;
+    }
+    setCleaningUp(true);
+    setShowUserMenu(false);
+    try {
+      const count = await cleanupOrphanedFiles();
+      alert(`清理完成！共删除了 ${count} 个失效文件。`);
+    } catch (err: any) {
+      alert("清理失败：" + (err.message || err));
+    } finally {
+      setCleaningUp(false);
+    }
   };
 
   const showLeft = !layout.leftPanelCollapsed && !layout.focusMode;
@@ -207,6 +235,14 @@ export default function AppLayout() {
                   </p>
                   <p className="text-xs text-slate-400 truncate">{userEmail}</p>
                 </div>
+                <button
+                  onClick={handleCleanupFiles}
+                  disabled={cleaningUp}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Image size={14} />
+                  {cleaningUp ? "清理中..." : "清理失效图片"}
+                </button>
                 <button
                   onClick={() => {
                     logout();

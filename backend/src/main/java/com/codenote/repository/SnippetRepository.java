@@ -20,4 +20,6 @@ public interface SnippetRepository extends JpaRepository<Snippet, UUID> {
            "LOWER(s.content) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "ORDER BY s.updatedAt DESC")
     List<Snippet> searchByKeyword(@Param("userId") UUID userId, @Param("keyword") String keyword);
+
+    List<Snippet> findByUserIdAndFavoriteTrueOrderByUpdatedAtDesc(UUID userId);
 }
