@@ -28,6 +28,9 @@ public class CategoryService {
     }
 
     public Category createCategory(UUID userId, CategoryRequest request) {
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw new RuntimeException("Category name is required");
+        }
         // 计算排序值
         int sortOrder = categoryRepository
                 .findByUserIdAndParentIdOrderBySortOrderAsc(userId, request.getParentId())
@@ -51,9 +54,14 @@ public class CategoryService {
             throw new RuntimeException("Not authorized");
         }
 
-        category.setName(request.getName());
+        if (request.getName() != null) {
+            category.setName(request.getName());
+        }
         if (request.getParentId() != null) {
             category.setParentId(request.getParentId());
+        }
+        if (request.getDescription() != null) {
+            category.setDescription(request.getDescription());
         }
 
         return categoryRepository.save(category);

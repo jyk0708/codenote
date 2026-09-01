@@ -6,11 +6,6 @@ import type {
   AnnotationColor,
   LayoutState,
 } from "@/types";
-import {
-  mockCategories,
-  mockSnippets,
-  mockAnnotations,
-} from "@/lib/mockData";
 import { v4 as uuidv4 } from "uuid";
 import {
   categoryApi,
@@ -61,7 +56,7 @@ interface AppState {
 
   // 操作 - 分类
   addCategory: (name: string, parentId: string | null) => Promise<void>;
-  updateCategory: (id: string, name: string) => Promise<void>;
+  updateCategory: (id: string, data: { name?: string; description?: string }) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   selectCategory: (id: string | null) => void;
 
@@ -71,6 +66,7 @@ interface AppState {
   deleteSnippet: (id: string) => Promise<void>;
   selectSnippet: (id: string | null) => void;
   toggleFavorite: (id: string) => Promise<void>;
+  reorderSnippet: (snippetId: string, targetSnippetId: string, position: "before" | "after") => Promise<void>;
 
   // 操作 - 注释
   addAnnotation: (
@@ -104,6 +100,7 @@ function mapCategory(data: any): Category {
     name: data.name,
     parentId: data.parentId ? String(data.parentId) : null,
     sortOrder: data.sortOrder || 0,
+    description: data.description || "",
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
@@ -119,6 +116,7 @@ function mapSnippet(data: any): Snippet {
     tags: data.tags || [],
     categoryId: data.categoryId ? String(data.categoryId) : null,
     favorite: data.favorite || false,
+    sortOrder: data.sortOrder || 0,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
@@ -172,15 +170,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isLoggedIn: true, userEmail: email, userNickname: nickname, isLoading: true });
       get().loadAllData();
     } else {
-      // 未登录：加载 mock 演示数据
+      // 未登录：空数据，弹出登录框
       set({
         isLoggedIn: false,
         isLoading: false,
-        categories: mockCategories,
-        snippets: mockSnippets,
-        annotations: mockAnnotations,
-        selectedCategoryId: mockCategories[0]?.id || null,
-        selectedSnippetId: mockSnippets[0]?.id || null,
+        categories: [],
+        snippets: [],
+        annotations: [],
+        selectedCategoryId: null,
+        selectedSnippetId: null,
         selectedAnnotationId: null,
       });
     }
@@ -220,11 +218,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       isLoggedIn: false,
       userEmail: null,
       userNickname: null,
-      categories: mockCategories,
-      snippets: mockSnippets,
-      annotations: mockAnnotations,
-      selectedCategoryId: mockCategories[0]?.id || null,
-      selectedSnippetId: mockSnippets[0]?.id || null,
+      categories: [],
+      snippets: [],
+      annotations: [],
+      selectedCategoryId: null,
+      selectedSnippetId: null,
       selectedAnnotationId: null,
     });
   },
@@ -274,11 +272,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           userEmail: null,
           userNickname: null,
           isLoading: false,
-          categories: mockCategories,
-          snippets: mockSnippets,
-          annotations: mockAnnotations,
-          selectedCategoryId: mockCategories[0]?.id || null,
-          selectedSnippetId: mockSnippets[0]?.id || null,
+          categories: [],
+          snippets: [],
+          annotations: [],
+          selectedCategoryId: null,
+          selectedSnippetId: null,
           selectedAnnotationId: null,
         });
         return;
@@ -327,23 +325,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  updateCategory: async (id, name) => {
+  updateCategory: async (id, data) => {
     const { isLoggedIn } = get();
-    if (!isLoggedIn) {
-      set((state) => ({
-        categories: state.categories.map((c) =>
-          c.id === id ? { ...c, name, updatedAt: new Date().toISOString() } : c
-        ),
-      }));
-      return;
-    }
 
-    await categoryApi.update(id, { name });
+    // 乐观更新
     set((state) => ({
       categories: state.categories.map((c) =>
-        c.id === id ? { ...c, name, updatedAt: new Date().toISOString() } : c
+        c.id === id
+          ? {
+              ...c,
+              ...(data.name !== undefined ? { name: data.name } : {}),
+              ...(data.description !== undefined ? { description: data.description } : {}),
+              updatedAt: new Date().toISOString(),
+            }
+          : c
       ),
     }));
+
+    if (!isLoggedIn) return;
+
+    try {
+      await categoryApi.update(id, data);
+    } catch (e) {
+      console.error("Failed to update category:", e);
+    }
   },
 
   deleteCategory: async (id) => {
@@ -399,6 +404,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       description: "",
       tags: [],
       categoryId,
+      sortOrder: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -471,23 +477,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deleteSnippet: async (id) => {
     const { isLoggedIn } = get();
-    if (!isLoggedIn) {
-      set((state) => {
-        const nextSnippets = state.snippets.filter((s) => s.id !== id);
-        const nextAnnotations = state.annotations.filter((a) => a.snippetId !== id);
-        return {
-          snippets: nextSnippets,
-          annotations: nextAnnotations,
-          selectedSnippetId:
-            state.selectedSnippetId === id
-              ? nextSnippets[0]?.id || null
-              : state.selectedSnippetId,
-        };
-      });
-      return;
-    }
 
-    await snippetApi.delete(id);
+    // 乐观更新：先从本地移除
     set((state) => {
       const nextSnippets = state.snippets.filter((s) => s.id !== id);
       const nextAnnotations = state.annotations.filter((a) => a.snippetId !== id);
@@ -498,8 +489,20 @@ export const useAppStore = create<AppState>((set, get) => ({
           state.selectedSnippetId === id
             ? nextSnippets[0]?.id || null
             : state.selectedSnippetId,
+        selectedAnnotationId:
+          state.annotations.some((a) => a.id === state.selectedAnnotationId && a.snippetId === id)
+            ? null
+            : state.selectedAnnotationId,
       };
     });
+
+    if (!isLoggedIn) return;
+
+    try {
+      await snippetApi.delete(id);
+    } catch (e) {
+      console.error("Failed to delete snippet:", e);
+    }
   },
 
   selectSnippet: (id) =>
@@ -539,6 +542,60 @@ export const useAppStore = create<AppState>((set, get) => ({
       }));
       console.error("Failed to toggle favorite:", err);
       throw err;
+    }
+  },
+
+  reorderSnippet: async (snippetId, targetSnippetId, position) => {
+    const { isLoggedIn, snippets } = get();
+    if (snippetId === targetSnippetId) return;
+
+    const dragged = snippets.find((s) => s.id === snippetId);
+    const target = snippets.find((s) => s.id === targetSnippetId);
+    if (!dragged || !target) return;
+    if (dragged.categoryId !== target.categoryId) return;
+
+    // 获取同分类下的所有片段，按当前排序
+    const catSnippets = snippets
+      .filter((s) => s.categoryId === dragged.categoryId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    // 移除拖拽项
+    const draggedIdx = catSnippets.findIndex((s) => s.id === snippetId);
+    catSnippets.splice(draggedIdx, 1);
+
+    // 找到目标项的新位置
+    const newTargetIdx = catSnippets.findIndex((s) => s.id === targetSnippetId);
+    // 插入到目标项前面或后面
+    const insertIdx = position === "before" ? newTargetIdx : newTargetIdx + 1;
+    catSnippets.splice(insertIdx, 0, dragged);
+
+    // 重新分配 sortOrder
+    const updates: { id: string; sortOrder: number }[] = [];
+    catSnippets.forEach((s, idx) => {
+      if (s.sortOrder !== idx) {
+        updates.push({ id: s.id, sortOrder: idx });
+      }
+    });
+
+    if (updates.length === 0) return;
+
+    // 乐观更新
+    set((state) => ({
+      snippets: state.snippets.map((s) => {
+        const u = updates.find((u) => u.id === s.id);
+        return u ? { ...s, sortOrder: u.sortOrder } : s;
+      }),
+    }));
+
+    if (!isLoggedIn) return;
+
+    // 批量更新到后端
+    for (const u of updates) {
+      try {
+        await snippetApi.update(u.id, { sortOrder: u.sortOrder });
+      } catch (err) {
+        console.error("Failed to update sortOrder:", err);
+      }
     }
   },
 
@@ -634,30 +691,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   deleteAnnotation: async (id) => {
-    const { isLoggedIn, annotations, selectedAnnotationId } = get();
+    const { isLoggedIn, annotations } = get();
     const annot = annotations.find((a) => a.id === id);
 
-    // 先乐观更新本地状态
+    // 乐观更新：立即从本地移除
     set((state) => ({
       annotations: state.annotations.filter((a) => a.id !== id),
       selectedAnnotationId:
         state.selectedAnnotationId === id ? null : state.selectedAnnotationId,
     }));
 
-    if (!isLoggedIn || !annot) {
-      return;
-    }
+    if (!isLoggedIn || !annot) return;
 
     try {
       await annotationApi.delete(annot.snippetId, id);
     } catch (e) {
       console.error("Delete annotation error:", e);
-      // 删除失败时回滚（把注释加回来）
-      set((state) => ({
-        annotations: [...state.annotations, annot],
-        selectedAnnotationId: selectedAnnotationId,
-      }));
-      throw e;
     }
   },
 

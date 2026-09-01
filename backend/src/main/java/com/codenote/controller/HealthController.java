@@ -1,6 +1,5 @@
 package com.codenote.controller;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,10 +11,11 @@ import java.util.Map;
 @RequestMapping("/health")
 public class HealthController {
 
-    @GetMapping
-    public ResponseEntity<Map<String, String>> health() {
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "ok");
-        return ResponseEntity.ok(response);
+    @GetMapping("/ping")
+    public Map<String, Object> ping() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", "ok");
+        result.put("timestamp", System.currentTimeMillis());
+        return result;
     }
 }

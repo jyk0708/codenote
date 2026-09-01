@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { Category, Snippet } from "@/types";
 import Modal from "@/components/ui/Modal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 type ViewMode = "all" | "favorites";
 
@@ -33,8 +34,10 @@ export default function CategoryTree() {
     selectCategory,
     selectSnippet,
     addSnippet,
+    updateSnippet,
     deleteSnippet,
     toggleFavorite,
+    reorderSnippet,
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
@@ -66,6 +69,27 @@ export default function CategoryTree() {
   const [newSnippetTitle, setNewSnippetTitle] = useState("");
   const [newSnippetDescription, setNewSnippetDescription] = useState("");
   const [newSnippetLanguage, setNewSnippetLanguage] = useState("javascript");
+  const [newSnippetTags, setNewSnippetTags] = useState("");
+
+  // 编辑片段弹窗
+  const [editSnippetId, setEditSnippetId] = useState<string | null>(null);
+  const [editSnippetTitle, setEditSnippetTitle] = useState("");
+  const [editSnippetDescription, setEditSnippetDescription] = useState("");
+  const [editSnippetLanguage, setEditSnippetLanguage] = useState("javascript");
+  const [editSnippetTags, setEditSnippetTags] = useState("");
+  const [editSnippetSortOrder, setEditSnippetSortOrder] = useState(0);
+
+  // 拖拽排序
+  const [draggingSnippetId, setDraggingSnippetId] = useState<string | null>(null);
+  const [dragOverSnippetId, setDragOverSnippetId] = useState<string | null>(null);
+  const [dragPosition, setDragPosition] = useState<"before" | "after">("after");
+
+  // 删除确认弹窗
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "category" | "snippet";
+    id: string;
+    name: string;
+  } | null>(null);
 
   const tree = useMemo(() => buildCategoryTree(categories, null), [categories]);
 
@@ -80,7 +104,7 @@ export default function CategoryTree() {
           (s.description && s.description.toLowerCase().includes(q))
       );
     }
-    return result;
+    return result.sort((a, b) => a.sortOrder - b.sortOrder);
   }, [snippets, searchQuery]);
 
   // 切换展开/折叠
@@ -107,7 +131,7 @@ export default function CategoryTree() {
   // 完成重命名
   const finishRename = () => {
     if (editingId && editingName.trim()) {
-      updateCategory(editingId, editingName.trim());
+      updateCategory(editingId, { name: editingName.trim() });
     }
     setEditingId(null);
     setEditingName("");
@@ -133,9 +157,12 @@ export default function CategoryTree() {
 
   // 删除分类
   const handleDeleteCategory = (id: string) => {
-    if (confirm("确定要删除此分类及其所有子分类和代码片段吗？")) {
-      deleteCategory(id);
-    }
+    const cat = categories.find((c) => c.id === id);
+    setDeleteTarget({
+      type: "category",
+      id,
+      name: cat?.name || "此分类",
+    });
     setContextMenu(null);
   };
 
@@ -145,6 +172,7 @@ export default function CategoryTree() {
     setNewSnippetTitle("");
     setNewSnippetDescription("");
     setNewSnippetLanguage("javascript");
+    setNewSnippetTags("");
     setShowSnippetModal(true);
     setContextMenu(null);
   };
@@ -152,6 +180,10 @@ export default function CategoryTree() {
   // 提交新建片段
   const handleCreateSnippet = async () => {
     const title = newSnippetTitle.trim() || "未命名片段";
+    const tags = newSnippetTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
     await addSnippet(newSnippetCategoryId);
     // 更新新建片段的标题、描述和语言
     const state = useAppStore.getState();
@@ -160,6 +192,7 @@ export default function CategoryTree() {
         title,
         description: newSnippetDescription.trim(),
         language: newSnippetLanguage,
+        tags,
       });
     }
     setShowSnippetModal(false);
@@ -167,6 +200,36 @@ export default function CategoryTree() {
     if (newSnippetCategoryId) {
       setExpandedIds((prev) => new Set(prev).add(newSnippetCategoryId));
     }
+  };
+
+  // 打开编辑片段弹窗
+  const openEditSnippetModal = (snippetId: string) => {
+    const s = snippets.find((sn) => sn.id === snippetId);
+    if (!s) return;
+    setEditSnippetId(snippetId);
+    setEditSnippetTitle(s.title);
+    setEditSnippetDescription(s.description || "");
+    setEditSnippetLanguage(s.language);
+    setEditSnippetTags(s.tags.join(", "));
+    setEditSnippetSortOrder(s.sortOrder || 0);
+    setContextMenu(null);
+  };
+
+  // 提交编辑片段
+  const handleEditSnippet = async () => {
+    if (!editSnippetId) return;
+    const tags = editSnippetTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    await updateSnippet(editSnippetId, {
+      title: editSnippetTitle.trim() || "未命名片段",
+      description: editSnippetDescription.trim(),
+      language: editSnippetLanguage,
+      tags,
+      sortOrder: editSnippetSortOrder,
+    });
+    setEditSnippetId(null);
   };
 
   // 右键菜单
@@ -201,7 +264,7 @@ export default function CategoryTree() {
           (s.description && s.description.toLowerCase().includes(q))
       );
     }
-    return result;
+    return result.sort((a, b) => a.sortOrder - b.sortOrder);
   };
 
   // 递归获取所有子分类的片段数
@@ -218,12 +281,49 @@ export default function CategoryTree() {
   // 渲染片段列表项（名称 + 描述 + 收藏按钮）
   const renderSnippetItem = (snippet: Snippet, depth: number = 1) => {
     const isSelected = selectedSnippetId === snippet.id;
+    const isDragging = draggingSnippetId === snippet.id;
+    const isDragOver = dragOverSnippetId === snippet.id;
+    const showLineBefore = isDragOver && dragPosition === "before";
+    const showLineAfter = isDragOver && dragPosition === "after";
     return (
       <div
         key={snippet.id}
-        className={`group cursor-pointer rounded-md transition-colors ${
+        draggable
+        onDragStart={(e) => {
+          setDraggingSnippetId(snippet.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragEnd={() => {
+          setDraggingSnippetId(null);
+          setDragOverSnippetId(null);
+        }}
+        onDragOver={(e) => {
+          if (draggingSnippetId && draggingSnippetId !== snippet.id) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            // 根据鼠标在 item 上的位置决定插入前还是后
+            const rect = e.currentTarget.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            setDragPosition(e.clientY < midY ? "before" : "after");
+            setDragOverSnippetId(snippet.id);
+          }
+        }}
+        onDragLeave={() => {
+          if (dragOverSnippetId === snippet.id) {
+            setDragOverSnippetId(null);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (draggingSnippetId && draggingSnippetId !== snippet.id) {
+            reorderSnippet(draggingSnippetId, snippet.id, dragPosition);
+          }
+          setDraggingSnippetId(null);
+          setDragOverSnippetId(null);
+        }}
+        className={`group cursor-pointer rounded-md transition-all relative ${
           isSelected ? "bg-primary-50" : "hover:bg-slate-100"
-        }`}
+        } ${isDragging ? "opacity-40" : ""}`}
         style={{ paddingLeft: `${depth * 16 + 12}px`, paddingRight: "8px" }}
         onClick={() => {
           if (snippet.categoryId) {
@@ -235,6 +335,9 @@ export default function CategoryTree() {
         }}
         onContextMenu={(e) => handleContextMenu(e, "snippet", snippet.id)}
       >
+        {showLineBefore && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary-400 z-10" />
+        )}
         <div className="flex items-start py-2 gap-2">
           <FileCode
             size={14}
@@ -276,6 +379,9 @@ export default function CategoryTree() {
             <Star size={14} fill={snippet.favorite ? "currentColor" : "none"} />
           </button>
         </div>
+        {showLineAfter && (
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-400 z-10" />
+        )}
       </div>
     );
   };
@@ -589,11 +695,21 @@ export default function CategoryTree() {
               </button>
               <div className="h-px bg-slate-100 my-1" />
               <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                onClick={() => openEditSnippetModal(contextMenu.id)}
+              >
+                <Pencil size={14} />
+                编辑片段
+              </button>
+              <button
                 className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
                 onClick={() => {
-                  if (confirm("确定删除此代码片段？")) {
-                    deleteSnippet(contextMenu.id);
-                  }
+                  const s = snippets.find((sn) => sn.id === contextMenu.id);
+                  setDeleteTarget({
+                    type: "snippet",
+                    id: contextMenu.id,
+                    name: s?.title || "此片段",
+                  });
                   setContextMenu(null);
                 }}
               >
@@ -722,6 +838,18 @@ export default function CategoryTree() {
               ))}
             </div>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              标签
+              <span className="text-slate-400 font-normal ml-1">（可选，用逗号分隔）</span>
+            </label>
+            <input
+              value={newSnippetTags}
+              onChange={(e) => setNewSnippetTags(e.target.value)}
+              placeholder="例如：solidity, defi, uniswap"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+            />
+          </div>
           {newSnippetCategoryId && (
             <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-md flex items-center gap-2">
               <Folder size={12} className="text-amber-500" />
@@ -730,6 +858,127 @@ export default function CategoryTree() {
           )}
         </div>
       </Modal>
+
+      {/* 编辑片段弹窗 */}
+      <Modal
+        isOpen={!!editSnippetId}
+        onClose={() => setEditSnippetId(null)}
+        title="编辑片段"
+        width="w-[460px]"
+        footer={
+          <>
+            <button
+              onClick={() => setEditSnippetId(null)}
+              className="px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleEditSnippet}
+              className="px-4 py-1.5 text-sm bg-primary-500 text-white rounded-md hover:bg-primary-600 transition-colors"
+            >
+              保存
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              片段名称
+            </label>
+            <input
+              value={editSnippetTitle}
+              onChange={(e) => setEditSnippetTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleEditSnippet();
+              }}
+              placeholder="未命名片段"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              描述
+              <span className="text-slate-400 font-normal ml-1">（可选）</span>
+            </label>
+            <textarea
+              value={editSnippetDescription}
+              onChange={(e) => setEditSnippetDescription(e.target.value)}
+              placeholder="简要描述这个代码片段的用途..."
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              语言类型
+            </label>
+            <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1">
+              {LANGUAGE_OPTIONS.map((lang) => (
+                <button
+                  key={lang.value}
+                  onClick={() => setEditSnippetLanguage(lang.value)}
+                  className={`px-3 py-1.5 text-xs rounded-md border transition-all ${
+                    editSnippetLanguage === lang.value
+                      ? "border-primary-400 bg-primary-50 text-primary-600 font-medium"
+                      : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              标签
+              <span className="text-slate-400 font-normal ml-1">（可选，用逗号分隔）</span>
+            </label>
+            <input
+              value={editSnippetTags}
+              onChange={(e) => setEditSnippetTags(e.target.value)}
+              placeholder="例如：solidity, defi, uniswap"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              排序序号
+              <span className="text-slate-400 font-normal ml-1">（数字越小越靠前）</span>
+            </label>
+            <input
+              type="number"
+              value={editSnippetSortOrder}
+              onChange={(e) => setEditSnippetSortOrder(parseInt(e.target.value) || 0)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title={deleteTarget?.type === "category" ? "删除分类" : "删除片段"}
+        message={
+          deleteTarget?.type === "category"
+            ? `确定要删除「${deleteTarget.name}」吗？\n\n此操作将删除该分类及其所有子分类和代码片段，且不可撤销。`
+            : `确定要删除「${deleteTarget?.name}」吗？\n\n此操作不可撤销。`
+        }
+        confirmText="删除"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          if (deleteTarget.type === "category") {
+            await deleteCategory(deleteTarget.id);
+          } else {
+            await deleteSnippet(deleteTarget.id);
+          }
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

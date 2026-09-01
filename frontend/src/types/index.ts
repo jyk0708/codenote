@@ -5,6 +5,7 @@ export interface Category {
   parentId: string | null;
   sortOrder: number;
   icon?: string;
+  description?: string;
   createdAt: string;
   updatedAt: string;
   children?: Category[];
@@ -21,6 +22,7 @@ export interface Snippet {
   tags: string[];
   categoryId: string | null;
   favorite?: boolean;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,6 +78,7 @@ export interface CreateCategoryDto {
 // 更新分类的 DTO
 export interface UpdateCategoryDto {
   name?: string;
+  description?: string;
   parentId?: string | null;
   sortOrder?: number;
 }
@@ -98,6 +101,7 @@ export interface UpdateSnippetDto {
   description?: string;
   tags?: string[];
   categoryId?: string | null;
+  sortOrder?: number;
 }
 
 // 创建注释的 DTO

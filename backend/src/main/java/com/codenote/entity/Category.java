@@ -39,6 +39,9 @@ public class Category {
 
     private String icon;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

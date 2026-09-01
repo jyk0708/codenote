@@ -20,14 +20,31 @@ import { xml } from "@codemirror/lang-xml";
 import { useAppStore } from "@/store/useAppStore";
 import { getLanguageLabel, LANGUAGE_OPTIONS, offsetToLine, renderMarkdown, renderMermaidInContainer } from "@/lib/utils";
 import {
+  handleImagePaste,
+  handleImageDrop,
+  handleMarkdownShortcut,
+  handleTabKey,
+  handleEnterKey,
+  uploadImage,
+  makeMarkdownImage,
+} from "@/lib/markdownEditor";
+import {
   Copy,
   ChevronDown,
   Plus,
   Edit3,
   Eye,
   Code,
+  FolderOpen,
+  Download,
+  FileText,
+  FileCode,
 } from "lucide-react";
 import type { Annotation } from "@/types";
+import {
+  downloadMarkdown,
+  downloadHTML,
+} from "@/lib/export";
 
 // 语言映射
 const languageExtensions: Record<string, () => any> = {
@@ -51,6 +68,106 @@ const setAnnotationsEffect = StateEffect.define<{
   activeId: string | null;
   docLength: number;
 }>();
+
+// CodeMirror Typora 风格 Markdown 快捷键
+function createMarkdownKeymap(): any[] {
+  const isMac = typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
+  const mod = isMac ? "Cmd" : "Ctrl";
+
+  const wrapSelection = (view: EditorView, before: string, after: string = before) => {
+    const { from, to } = view.state.selection.main;
+    const selected = view.state.sliceDoc(from, to);
+    view.dispatch({
+      changes: { from, to, insert: before + selected + after },
+      selection: { anchor: from + before.length, head: from + before.length + selected.length },
+    });
+    return true;
+  };
+
+  const prefixLine = (view: EditorView, prefix: string, toggle = true) => {
+    const { from, to } = view.state.selection.main;
+    const lineFrom = view.state.doc.lineAt(from).from;
+    const lineTo = view.state.doc.lineAt(to).to;
+    const lineText = view.state.sliceDoc(lineFrom, lineTo);
+    const hasPrefix = lineText.startsWith(prefix);
+
+    if (hasPrefix && toggle) {
+      view.dispatch({
+        changes: { from: lineFrom, to: lineTo, insert: lineText.slice(prefix.length) },
+      });
+    } else {
+      view.dispatch({
+        changes: { from: lineFrom, to: lineTo, insert: prefix + lineText },
+      });
+    }
+    return true;
+  };
+
+  const setHeading = (view: EditorView, level: number) => {
+    const { from, to } = view.state.selection.main;
+    const line = view.state.doc.lineAt(from);
+    const lineContent = line.text;
+    const cleaned = lineContent.replace(/^#{1,6}\s*/, "");
+    const prefix = level > 0 ? "#".repeat(level) + " " : "";
+    view.dispatch({
+      changes: { from: line.from, to: line.to, insert: prefix + cleaned },
+    });
+    return true;
+  };
+
+  const insertLink = (view: EditorView) => {
+    const { from, to } = view.state.selection.main;
+    const selected = view.state.sliceDoc(from, to) || "链接文字";
+    view.dispatch({
+      changes: { from, to, insert: `[${selected}](url)` },
+      selection: { anchor: from + selected.length + 3, head: from + selected.length + 6 },
+    });
+    return true;
+  };
+
+  const insertCodeBlock = (view: EditorView) => {
+    const { from, to } = view.state.selection.main;
+    const selected = view.state.sliceDoc(from, to);
+    if (selected.includes("\n")) {
+      view.dispatch({
+        changes: { from, to, insert: "```\n" + selected + "\n```" },
+        selection: { anchor: from + 4, head: from + 4 + selected.length },
+      });
+    } else {
+      wrapSelection(view, "`");
+    }
+    return true;
+  };
+
+  const insertMath = (view: EditorView) => {
+    const { from, to } = view.state.selection.main;
+    const selected = view.state.sliceDoc(from, to);
+    if (selected.includes("\n")) {
+      wrapSelection(view, "$$", "$$");
+    } else {
+      wrapSelection(view, "$");
+    }
+    return true;
+  };
+
+  return [
+    { key: `${mod}-b`, run: (v: EditorView) => wrapSelection(v, "**") },
+    { key: `${mod}-i`, run: (v: EditorView) => wrapSelection(v, "*") },
+    { key: `${mod}-k`, run: insertLink },
+    { key: `${mod}-Shift-K`, run: insertCodeBlock },
+    { key: `${mod}-Shift-M`, run: insertMath },
+    { key: `${mod}-Shift-Q`, run: (v: EditorView) => prefixLine(v, "> ") },
+    { key: `${mod}-Shift-U`, run: (v: EditorView) => prefixLine(v, "- ") },
+    { key: `${mod}-Shift-O`, run: (v: EditorView) => prefixLine(v, "1. ") },
+    { key: `${mod}-1`, run: (v: EditorView) => setHeading(v, 1) },
+    { key: `${mod}-2`, run: (v: EditorView) => setHeading(v, 2) },
+    { key: `${mod}-3`, run: (v: EditorView) => setHeading(v, 3) },
+    { key: `${mod}-4`, run: (v: EditorView) => setHeading(v, 4) },
+    { key: `${mod}-5`, run: (v: EditorView) => setHeading(v, 5) },
+    { key: `${mod}-6`, run: (v: EditorView) => setHeading(v, 6) },
+    { key: `${mod}-0`, run: (v: EditorView) => setHeading(v, 0) },
+  ];
+}
 
 // 构建注释装饰集
 function buildDecorations(
@@ -102,10 +219,269 @@ const annotationField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+// 分类描述编辑器
+function CategoryDescriptionEditor() {
+  const { selectedCategoryId, getCurrentCategory, updateCategory } = useAppStore();
+  const category = getCurrentCategory();
+  const [editMode, setEditMode] = useState<"edit" | "split" | "preview">("split");
+  const [localContent, setLocalContent] = useState("");
+  const [debouncedContent, setDebouncedContent] = useState("");
+  const [showCatExportMenu, setShowCatExportMenu] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 同步分类描述到本地
+  useEffect(() => {
+    if (category) {
+      setLocalContent(category.description || "");
+    }
+  }, [category?.id]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // debounce 内容变化
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedContent(localContent);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localContent]);
+
+  // 保存到 store
+  useEffect(() => {
+    if (!category || localContent === (category.description || "")) return;
+    updateCategory(category.id, { description: localContent });
+  }, [debouncedContent]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 预览 HTML
+  const previewHtml = useMemo(() => {
+    if (!debouncedContent) return "";
+    return renderMarkdown(debouncedContent);
+  }, [debouncedContent]);
+
+  // 渲染 Mermaid
+  useEffect(() => {
+    if (previewRef.current && previewHtml) {
+      renderMermaidInContainer(previewRef.current);
+    }
+  }, [previewHtml, editMode]);
+
+  // 自动调整 textarea 高度
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta || editMode !== "edit") return;
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  }, [localContent, editMode]);
+
+  if (!category) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-slate-400 bg-white">
+        <div className="text-center">
+          <p className="mb-2">选择一个分类或代码片段开始编辑</p>
+          <p className="text-sm">或从左侧分类树新建</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-white">
+      {/* 工具栏 */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50 pr-36">
+        <div className="flex items-center gap-2">
+          <FolderOpen size={15} className="text-primary-500" />
+          <span className="font-medium text-sm text-slate-700">{category.name}</span>
+          <span className="text-xs text-slate-400">分类描述</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {/* 导出按钮 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowCatExportMenu(!showCatExportMenu)}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded hover:bg-slate-200 transition-colors"
+              title="导出分类描述"
+            >
+              <Download size={13} />
+              导出
+              <ChevronDown size={10} />
+            </button>
+            {showCatExportMenu && (
+              <div
+                className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-50 min-w-40"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-3 py-1.5 text-xs text-slate-400 border-b border-slate-100">
+                  导出为
+                </div>
+                <button
+                  onClick={() => {
+                    const mdContent = `# ${category.name}\n\n${localContent || ""}`;
+                    const blob = new Blob([mdContent], { type: "text/markdown;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${category.name}.md`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setShowCatExportMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <FileText size={14} className="text-slate-400" />
+                  Markdown (.md)
+                </button>
+                <button
+                  onClick={() => {
+                    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>${category.name}</title>
+<style>
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; line-height: 1.8; color: #334155; max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+h1 { color: #1e293b; border-bottom: 2px solid #6366f1; padding-bottom: 8px; }
+.markdown-body img { max-width: 100%; }
+.markdown-body pre { background: #1e293b; padding: 16px; border-radius: 8px; overflow-x: auto; color: #e2e8f0; }
+.markdown-body code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+.markdown-body pre code { background: transparent; padding: 0; }
+.markdown-body blockquote { border-left: 4px solid #6366f1; padding-left: 16px; color: #64748b; margin: 16px 0; }
+.markdown-body table { border-collapse: collapse; width: 100%; }
+.markdown-body th, .markdown-body td { border: 1px solid #e2e8f0; padding: 8px 12px; }
+.markdown-body th { background: #f8fafc; }
+.markdown-body ul { list-style: disc; padding-left: 24px; }
+.markdown-body ol { list-style: decimal; padding-left: 24px; }
+</style></head>
+<body><h1>${category.name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h1>
+<div class="markdown-body">${renderMarkdown(localContent || "")}</div>
+</body></html>`;
+                    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${category.name}.html`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setShowCatExportMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <FileCode size={14} className="text-slate-400" />
+                  HTML (.html)
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 编辑模式切换 */}
+      <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-slate-100 bg-white">
+        <button
+          onClick={() => setEditMode("edit")}
+          className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+            editMode === "edit"
+              ? "bg-white text-slate-700 shadow-sm border border-slate-200"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Code size={12} />
+          编辑
+        </button>
+        <button
+          onClick={() => setEditMode("split")}
+          className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+            editMode === "split"
+              ? "bg-white text-slate-700 shadow-sm border border-slate-200"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Edit3 size={12} />
+          分屏
+        </button>
+        <button
+          onClick={() => setEditMode("preview")}
+          className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+            editMode === "preview"
+              ? "bg-white text-slate-700 shadow-sm border border-slate-200"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Eye size={12} />
+          预览
+        </button>
+      </div>
+
+      {/* 编辑区 + 预览区 */}
+      <div className="flex-1 flex overflow-hidden">
+        {(editMode === "edit" || editMode === "split") && (
+          <textarea
+            ref={textareaRef}
+            value={localContent}
+            onChange={(e) => setLocalContent(e.target.value)}
+            onPaste={async (e) => {
+              await handleImagePaste(e, () => localContent, setLocalContent);
+            }}
+            onDrop={async (e) => {
+              await handleImageDrop(e, () => localContent, setLocalContent);
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onKeyDown={(e) => {
+              const ta = e.currentTarget;
+              const selection = { start: ta.selectionStart, end: ta.selectionEnd };
+              const handlers = [
+                handleMarkdownShortcut(e, localContent, selection),
+                handleTabKey(e, localContent, selection),
+                handleEnterKey(e, localContent, selection),
+              ];
+              for (const result of handlers) {
+                if (result.handled && result.text !== undefined) {
+                  setLocalContent(result.text);
+                  requestAnimationFrame(() => {
+                    if (result.selection) {
+                      ta.setSelectionRange(result.selection.start, result.selection.end);
+                    }
+                  });
+                  break;
+                }
+              }
+            }}
+            className={`${
+              editMode === "split" ? "w-1/2 border-r border-slate-200" : "w-full"
+            } h-full p-4 text-sm font-mono text-slate-700 resize-none outline-none bg-white overflow-y-auto`}
+            placeholder="用 Markdown 编写分类描述...&#10;例如：该分类包含哪些内容、学习路线、相关链接等"
+          />
+        )}
+        {(editMode === "preview" || editMode === "split") && (
+          <div
+            ref={previewRef}
+            className={`${editMode === "split" ? "w-1/2" : "w-full"} overflow-y-auto bg-slate-50/30`}
+            style={{ userSelect: "text" }}
+          >
+            {debouncedContent ? (
+              <div
+                className="markdown-body text-sm p-4"
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                预览区
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 底部状态栏 */}
+      <div className="flex items-center justify-between px-4 py-1.5 border-t border-slate-200 bg-slate-50 text-xs text-slate-500">
+        <span>{localContent ? `${localContent.length} 字` : "暂无描述"}</span>
+        <span>已自动保存</span>
+      </div>
+    </div>
+  );
+}
+
 export default function CodeEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [showSelectionToolbar, setShowSelectionToolbar] = useState(false);
   const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 });
   const [selectionRange, setSelectionRange] = useState<{ from: number; to: number } | null>(null);
@@ -123,6 +499,9 @@ export default function CodeEditor() {
     selectedAnnotationId,
     selectAnnotation,
     addAnnotation,
+    selectedCategoryId,
+    getCurrentCategory,
+    updateCategory,
   } = useAppStore();
 
   // 直接订阅 annotations 数组（原始引用）
@@ -163,7 +542,7 @@ export default function CodeEditor() {
       : javascript();
 
     // 点击注释区域的事件处理
-    const clickHandler = EditorView.domEventHandlers({
+    const domEventHandlers = EditorView.domEventHandlers({
       click: (e, view) => {
         const target = e.target as HTMLElement;
         const annotEl = target.closest("[data-annotation-id]");
@@ -173,6 +552,71 @@ export default function CodeEditor() {
             useAppStore.getState().selectAnnotation(id);
             return true;
           }
+        }
+        return false;
+      },
+      paste: (e, view) => {
+        if (snippet.language !== "markdown") return false;
+        const ev = e as ClipboardEvent;
+        const items = ev.clipboardData?.items;
+        if (!items) return false;
+
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.startsWith("image/")) {
+            ev.preventDefault();
+            const file = items[i].getAsFile();
+            if (file) {
+              uploadImage(file).then((result) => {
+                const md = makeMarkdownImage(result);
+                const pos = view.state.selection.main.from;
+                view.dispatch({
+                  changes: { from: pos, insert: md },
+                  selection: { anchor: pos + md.length },
+                });
+              }).catch((err) => console.error("Image upload failed:", err));
+            }
+            return true;
+          }
+        }
+        return false;
+      },
+      drop: (e, view) => {
+        if (snippet.language !== "markdown") return false;
+        const ev = e as DragEvent;
+        const files = ev.dataTransfer?.files;
+        if (!files || files.length === 0) return false;
+
+        const imageFiles = Array.from(files).filter((f) =>
+          f.type.startsWith("image/")
+        );
+        if (imageFiles.length === 0) return false;
+
+        ev.preventDefault();
+        const pos = view.posAtCoords({ x: ev.clientX, y: ev.clientY });
+        if (pos == null) return true;
+        let insertText = "";
+        let pending = imageFiles.length;
+
+        imageFiles.forEach((file) => {
+          uploadImage(file).then((result) => {
+            insertText += makeMarkdownImage(result);
+            pending--;
+            if (pending === 0) {
+              view.dispatch({
+                changes: { from: pos, insert: insertText },
+                selection: { anchor: pos + insertText.length },
+              });
+            }
+          }).catch((err) => console.error("Image upload failed:", err));
+        });
+        return true;
+      },
+      dragover: (e, view) => {
+        if (snippet.language !== "markdown") return false;
+        const ev = e as DragEvent;
+        if (ev.dataTransfer?.types.includes("Files")) {
+          ev.preventDefault();
+          return true;
         }
         return false;
       },
@@ -277,7 +721,7 @@ export default function CodeEditor() {
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         langExt,
         annotationField,
-        clickHandler,
+        domEventHandlers,
         selectionListener,
         changeListener,
         keymap.of([
@@ -287,6 +731,7 @@ export default function CodeEditor() {
           ...foldKeymap,
           ...closeBracketsKeymap,
           ...completionKeymap,
+          ...(snippet.language === "markdown" ? createMarkdownKeymap() : []),
         ]),
         EditorView.theme({
           "&": {
@@ -449,20 +894,13 @@ export default function CodeEditor() {
   };
 
   if (!snippet) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-slate-400 bg-white">
-        <div className="text-center">
-          <p className="mb-2">选择一个代码片段开始编辑</p>
-          <p className="text-sm">或从左侧分类树新建片段</p>
-        </div>
-      </div>
-    );
+    return <CategoryDescriptionEditor />;
   }
 
   return (
     <div className="flex flex-col h-full bg-white relative">
       {/* 工具栏 */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50 pr-36">
         <div className="flex items-center gap-3">
           {/* 标题 */}
           <input
@@ -501,6 +939,48 @@ export default function CodeEditor() {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* 导出按钮 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded hover:bg-slate-200 transition-colors"
+              title="导出代码片段及注释"
+            >
+              <Download size={13} />
+              导出
+              <ChevronDown size={10} />
+            </button>
+            {showExportMenu && (
+              <div
+                className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-30 min-w-40"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-3 py-1.5 text-xs text-slate-400 border-b border-slate-100">
+                  导出为
+                </div>
+                <button
+                  onClick={() => {
+                    downloadMarkdown(snippet, annotations);
+                    setShowExportMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <FileText size={14} className="text-slate-400" />
+                  Markdown (.md)
+                </button>
+                <button
+                  onClick={() => {
+                    downloadHTML(snippet, annotations);
+                    setShowExportMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <FileCode size={14} className="text-slate-400" />
+                  HTML (.html)
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={handleCopy}
             className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"

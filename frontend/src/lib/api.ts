@@ -73,7 +73,7 @@ export const categoryApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  update: (id: string, data: { name: string; parentId?: string | null }) =>
+  update: (id: string, data: { name?: string; description?: string; parentId?: string | null }) =>
     request<any>(`/categories/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -168,5 +168,20 @@ export const fileApi = {
     return request<{ deletedCount: number; message: string }>("/files/cleanup", {
       method: "POST",
     });
+  },
+};
+
+// --- Health Check (心跳) ---
+export const healthApi = {
+  ping: async (): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE}/health/ping`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   },
 };

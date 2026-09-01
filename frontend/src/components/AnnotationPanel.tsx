@@ -3,7 +3,13 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { renderMarkdown, offsetToLine, renderMermaidInContainer } from "@/lib/utils";
-import { fileApi } from "@/lib/api";
+import {
+  uploadImage,
+  makeMarkdownImage,
+  handleMarkdownShortcut,
+  handleTabKey,
+  handleEnterKey,
+} from "@/lib/markdownEditor";
 import {
   MessageSquare,
   Trash2,
@@ -18,6 +24,7 @@ import {
 import type { Annotation, AnnotationColor } from "@/types";
 import Modal from "@/components/ui/Modal";
 import FloatingPanel from "@/components/ui/FloatingPanel";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 const ANNOTATION_COLOR_MAP: Record<AnnotationColor, string> = {
   indigo: "bg-indigo-500",
@@ -64,6 +71,9 @@ export default function AnnotationPanel() {
   // 图片上传状态
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
+  // 删除确认弹窗
+  const [deleteAnnotId, setDeleteAnnotId] = useState<string | null>(null);
+
   const selectedAnnot = annotations.find((a) => a.id === selectedAnnotationId);
   const popupAnnot = annotations.find((a) => a.id === popupAnnotId);
 
@@ -78,69 +88,22 @@ export default function AnnotationPanel() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm("确定删除这条注释？")) {
-      deleteAnnotation(id);
-      if (expandedId === id) setExpandedId(null);
-      if (editingId === id) setEditingId(null);
-    }
+    setDeleteAnnotId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteAnnotId) return;
+    const id = deleteAnnotId;
+    await deleteAnnotation(id);
+    if (expandedId === id) setExpandedId(null);
+    if (editingId === id) setEditingId(null);
+    setDeleteAnnotId(null);
   };
 
   const handleCardClick = (annot: Annotation) => {
     selectAnnotation(annot.id);
     setExpandedId(annot.id);
     setEditingId(annot.id);
-  };
-
-  // 图片上传到 MinIO
-  const uploadImage = async (file: File): Promise<{ url: string; width: number; height: number; name: string }> => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        // 先获取图片尺寸
-        const img = new Image();
-        const objectUrl = URL.createObjectURL(file);
-        img.onload = async () => {
-          const width = img.naturalWidth;
-          const height = img.naturalHeight;
-          URL.revokeObjectURL(objectUrl);
-
-          try {
-            // 尝试调用后端 MinIO 上传接口
-            const result = await fileApi.upload(file);
-            resolve({
-              url: result.url,
-              width,
-              height,
-              name: result.name || file.name,
-            });
-          } catch (err) {
-            // 后端/MinIO 不可用时，降级为 base64 本地预览
-            console.warn("图片上传失败（MinIO 未启动或后端不可用），使用本地 base64 预览:", err);
-            // 延迟一点显示提示，避免阻塞
-            setTimeout(() => {
-              alert("提示：MinIO 服务未启动，图片将以 base64 格式保存在本地。\n启动 MinIO 后图片将上传到服务器。");
-            }, 100);
-            const reader = new FileReader();
-            reader.onload = () => {
-              resolve({
-                url: reader.result as string,
-                width,
-                height,
-                name: file.name,
-              });
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          }
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error("图片加载失败"));
-        };
-        img.src = objectUrl;
-      } catch (err) {
-        reject(err);
-      }
-    });
   };
 
   // 处理粘贴图片
@@ -161,9 +124,7 @@ export default function AnnotationPanel() {
             const result = await uploadImage(file);
             const annot = allAnnotations.find((a) => a.id === annotId);
             if (annot) {
-              const newContent =
-                annot.contentMarkdown +
-                `\n![${result.name}|${Math.round(result.width * 0.6)}x${Math.round(result.height * 0.6)}](${result.url})\n`;
+              const newContent = annot.contentMarkdown + makeMarkdownImage(result);
               updateAnnotation(annotId, { contentMarkdown: newContent });
             }
           } catch (err) {
@@ -198,7 +159,7 @@ export default function AnnotationPanel() {
         let newContent = annot.contentMarkdown;
         for (const file of imageFiles) {
           const result = await uploadImage(file);
-          newContent += `\n![${result.name}|${Math.round(result.width * 0.6)}x${Math.round(result.height * 0.6)}](${result.url})\n`;
+          newContent += makeMarkdownImage(result);
         }
         updateAnnotation(annotId, { contentMarkdown: newContent });
       } catch (err) {
@@ -306,19 +267,6 @@ export default function AnnotationPanel() {
           </div>
         </div>
 
-        {/* 标题编辑 */}
-        <div className="px-3 py-2 border-b border-slate-100">
-          <input
-            value={annot.title}
-            onChange={(e) =>
-              updateAnnotation(annot.id, { title: e.target.value })
-            }
-            onClick={(e) => e.stopPropagation()}
-            className="w-full bg-transparent border-none outline-none font-medium text-sm text-slate-700 focus:bg-slate-50 rounded px-1 py-0.5"
-            placeholder="注释标题"
-          />
-        </div>
-
         {/* 正文编辑区域 - 自适应高度 */}
         <div
           className={`${
@@ -344,6 +292,26 @@ export default function AnnotationPanel() {
                 onDrop={(e) => handleDrop(e, annot.id)}
                 onDragOver={(e) => e.preventDefault()}
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  const ta = e.currentTarget;
+                  const sel = { start: ta.selectionStart, end: ta.selectionEnd };
+                  const results = [
+                    handleMarkdownShortcut(e, annot.contentMarkdown, sel),
+                    handleTabKey(e, annot.contentMarkdown, sel),
+                    handleEnterKey(e, annot.contentMarkdown, sel),
+                  ];
+                  for (const result of results) {
+                    if (result.handled && result.text !== undefined) {
+                      updateAnnotation(annot.id, { contentMarkdown: result.text });
+                      requestAnimationFrame(() => {
+                        if (result.selection) {
+                          ta.setSelectionRange(result.selection.start, result.selection.end);
+                        }
+                      });
+                      break;
+                    }
+                  }
+                }}
                 className="flex-1 w-full min-h-[200px] p-3 bg-white text-sm font-mono text-slate-700 resize-y outline-none"
                 placeholder="用 Markdown 编写注释...&#10;可直接粘贴截图或拖拽图片上传"
               />
@@ -413,9 +381,15 @@ export default function AnnotationPanel() {
                   <span
                     className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${ANNOTATION_COLOR_MAP[annot.color]}`}
                   />
-                  <span className="font-medium text-sm text-slate-700 truncate flex-1">
-                    {annot.title}
-                  </span>
+                  <input
+                    value={annot.title}
+                    onChange={(e) =>
+                      updateAnnotation(annot.id, { title: e.target.value })
+                    }
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-medium text-sm text-slate-700 flex-1 min-w-0 bg-transparent border-none outline-none hover:bg-slate-50 focus:bg-slate-50 rounded px-1 py-0.5"
+                    placeholder="注释标题"
+                  />
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <span className="text-xs text-slate-400 font-mono">
@@ -551,6 +525,26 @@ export default function AnnotationPanel() {
                     onPaste={(e) => handlePaste(e, popupAnnot.id)}
                     onDrop={(e) => handleDrop(e, popupAnnot.id)}
                     onDragOver={(e) => e.preventDefault()}
+                    onKeyDown={(e) => {
+                      const ta = e.currentTarget;
+                      const sel = { start: ta.selectionStart, end: ta.selectionEnd };
+                      const results = [
+                        handleMarkdownShortcut(e, popupAnnot.contentMarkdown, sel),
+                        handleTabKey(e, popupAnnot.contentMarkdown, sel),
+                        handleEnterKey(e, popupAnnot.contentMarkdown, sel),
+                      ];
+                      for (const result of results) {
+                        if (result.handled && result.text !== undefined) {
+                          updateAnnotation(popupAnnot.id, { contentMarkdown: result.text });
+                          requestAnimationFrame(() => {
+                            if (result.selection) {
+                              ta.setSelectionRange(result.selection.start, result.selection.end);
+                            }
+                          });
+                          break;
+                        }
+                      }
+                    }}
                     className="w-full h-full p-3 bg-slate-50 text-sm font-mono text-slate-700 resize-none outline-none rounded-lg border border-slate-200 focus:border-primary-300 focus:ring-2 focus:ring-primary-100 transition-all"
                     placeholder="用 Markdown 编写注释...&#10;可直接粘贴截图或拖拽图片上传&#10;图片尺寸：![描述|宽x高](url)"
                   />
@@ -573,6 +567,17 @@ export default function AnnotationPanel() {
           </div>
         )}
       </FloatingPanel>
+
+      {/* 删除注释确认弹窗 */}
+      <ConfirmDialog
+        isOpen={!!deleteAnnotId}
+        title="删除注释"
+        message="确定要删除这条注释吗？此操作不可撤销。"
+        confirmText="删除"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteAnnotId(null)}
+      />
     </div>
   );
 }

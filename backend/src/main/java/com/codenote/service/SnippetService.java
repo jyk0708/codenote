@@ -43,12 +43,14 @@ public class SnippetService {
     public Snippet createSnippet(UUID userId, SnippetRequest request) {
         Snippet snippet = Snippet.builder()
                 .userId(userId)
-                .title(request.getTitle())
-                .language(request.getLanguage())
-                .content(request.getContent())
+                .title(request.getTitle() != null ? request.getTitle() : "未命名片段")
+                .language(request.getLanguage() != null ? request.getLanguage() : "javascript")
+                .content(request.getContent() != null ? request.getContent() : "")
                 .description(request.getDescription())
                 .tags(request.getTags() != null ? request.getTags() : List.of())
                 .categoryId(request.getCategoryId())
+                .favorite(false)
+                .sortOrder(0)
                 .build();
 
         return snippetRepository.save(snippet);
@@ -68,6 +70,8 @@ public class SnippetService {
         if (request.getDescription() != null) snippet.setDescription(request.getDescription());
         if (request.getTags() != null) snippet.setTags(request.getTags());
         if (request.getCategoryId() != null) snippet.setCategoryId(request.getCategoryId());
+        if (request.getFavorite() != null) snippet.setFavorite(request.getFavorite());
+        if (request.getSortOrder() != null) snippet.setSortOrder(request.getSortOrder());
 
         return snippetRepository.save(snippet);
     }

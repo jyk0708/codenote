@@ -6,6 +6,7 @@ import CategoryTree from "./CategoryTree";
 import CodeEditor from "./CodeEditor";
 import AnnotationPanel from "./AnnotationPanel";
 import AuthModal from "./AuthModal";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,6 +15,9 @@ import {
   User,
   LogOut,
   Image,
+  WifiOff,
+  Wifi,
+  X,
 } from "lucide-react";
 
 export default function AppLayout() {
@@ -36,6 +40,9 @@ export default function AppLayout() {
   const [showAuth, setShowAuth] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [cleaningUp, setCleaningUp] = useState(false);
+
+  // 心跳检测
+  const { isOnline, showWarning, dismissWarning, recheck } = useHeartbeat(15000);
 
   // 初始化时检查认证状态
   useEffect(() => {
@@ -167,10 +174,50 @@ export default function AppLayout() {
   return (
     <div
       ref={containerRef}
-      className="flex h-full w-full bg-slate-50 select-none"
+      className="flex h-full w-full bg-slate-50 select-none flex-col"
     >
-      {/* 登录弹窗 */}
-      <AuthModal isOpen={showAuth} onSuccess={handleAuthSuccess} />
+      {/* 断连警告横幅 */}
+      {showWarning && (
+        <div
+          className={`${
+            isOnline
+              ? "bg-emerald-500 text-white"
+              : "bg-amber-500 text-white"
+          } px-4 py-2 flex items-center justify-between flex-shrink-0 z-50`}
+        >
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <>
+                <Wifi size={16} />
+                <span className="text-sm font-medium">连接已恢复</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={16} className="animate-pulse" />
+                <span className="text-sm font-medium">
+                  服务器连接已断开！请及时保存您的内容，避免数据丢失。
+                </span>
+                <button
+                  onClick={recheck}
+                  className="text-xs bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors"
+                >
+                  立即重连
+                </button>
+              </>
+            )}
+          </div>
+          <button
+            onClick={dismissWarning}
+            className="hover:bg-white/20 p-1 rounded transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-1 min-h-0">
+        {/* 登录弹窗 */}
+        <AuthModal isOpen={showAuth} onSuccess={handleAuthSuccess} />
 
       {/* 左侧面板 */}
       {showLeft && (
@@ -298,6 +345,7 @@ export default function AppLayout() {
       >
         {layout.focusMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
       </button>
+      </div>
     </div>
   );
 }

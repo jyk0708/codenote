@@ -55,6 +55,9 @@ public class Snippet {
     @Builder.Default
     private Boolean favorite = false;
 
+    @Builder.Default
+    private Integer sortOrder = 0;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
