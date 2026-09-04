@@ -56,7 +56,7 @@ interface AppState {
 
   // 操作 - 分类
   addCategory: (name: string, parentId: string | null) => Promise<void>;
-  updateCategory: (id: string, data: { name?: string; description?: string }) => Promise<void>;
+  updateCategory: (id: string, data: { name?: string; description?: string; parentId?: string | null }) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   selectCategory: (id: string | null) => void;
 
@@ -67,6 +67,8 @@ interface AppState {
   selectSnippet: (id: string | null) => void;
   toggleFavorite: (id: string) => Promise<void>;
   reorderSnippet: (snippetId: string, targetSnippetId: string, position: "before" | "after") => Promise<void>;
+  moveSnippetToCategory: (snippetId: string, targetCategoryId: string) => Promise<void>;
+  moveCategory: (categoryId: string, targetParentId: string | null) => Promise<void>;
 
   // 操作 - 注释
   addAnnotation: (
@@ -596,6 +598,63 @@ export const useAppStore = create<AppState>((set, get) => ({
       } catch (err) {
         console.error("Failed to update sortOrder:", err);
       }
+    }
+  },
+
+  moveSnippetToCategory: async (snippetId, targetCategoryId) => {
+    const { isLoggedIn, snippets } = get();
+    const snippet = snippets.find((s) => s.id === snippetId);
+    if (!snippet || snippet.categoryId === targetCategoryId) return;
+
+    const targetSnippets = snippets
+      .filter((s) => s.categoryId === targetCategoryId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    const newSortOrder = targetSnippets.length > 0
+      ? targetSnippets[targetSnippets.length - 1].sortOrder + 1
+      : 0;
+
+    set((state) => ({
+      snippets: state.snippets.map((s) =>
+        s.id === snippetId
+          ? { ...s, categoryId: targetCategoryId, sortOrder: newSortOrder }
+          : s
+      ),
+    }));
+
+    if (!isLoggedIn) return;
+
+    try {
+      await snippetApi.update(snippetId, { categoryId: targetCategoryId, sortOrder: newSortOrder });
+    } catch (e) {
+      console.error("Move snippet error:", e);
+    }
+  },
+
+  moveCategory: async (categoryId, targetParentId) => {
+    const { isLoggedIn, categories } = get();
+    if (categoryId === targetParentId) return;
+
+    const isDescendant = (parentId: string | null): boolean => {
+      if (parentId === categoryId) return true;
+      if (!parentId) return false;
+      const parent = categories.find((c) => c.id === parentId);
+      if (!parent) return false;
+      return isDescendant(parent.parentId);
+    };
+    if (isDescendant(targetParentId)) return;
+
+    set((state) => ({
+      categories: state.categories.map((c) =>
+        c.id === categoryId ? { ...c, parentId: targetParentId } : c
+      ),
+    }));
+
+    if (!isLoggedIn) return;
+
+    try {
+      await categoryApi.update(categoryId, { parentId: targetParentId });
+    } catch (e) {
+      console.error("Move category error:", e);
     }
   },
 

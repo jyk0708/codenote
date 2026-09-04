@@ -517,8 +517,21 @@ export function downloadHTML(snippet: Snippet, annotations: Annotation[]) {
             }
           });
         }
-        // 高亮注释中的代码预览
+        // 高亮注释代码预览区
         document.querySelectorAll('.annot-code-preview pre code').forEach(function(block) {
+          try { hljs.highlightElement(block); } catch(e) {}
+        });
+        // 高亮注释正文中的代码块
+        document.querySelectorAll('.annot-content pre code').forEach(function(block) {
+          // 如果 highlight.js 没有自动识别语言，尝试用 snippet 的语言
+          if (!block.className || block.className.indexOf('language-') === -1) {
+            var lang = '${lang}';
+            block.className = 'language-' + lang;
+          }
+          try { hljs.highlightElement(block); } catch(e) {}
+        });
+        // 高亮注释正文中的行内代码（非 pre 内的 code）
+        document.querySelectorAll('.annot-content code:not(pre code)').forEach(function(block) {
           try { hljs.highlightElement(block); } catch(e) {}
         });
       }
@@ -542,14 +555,18 @@ export function downloadHTML(snippet: Snippet, annotations: Annotation[]) {
               el.classList.remove('active');
             });
             annotEl.classList.add('active');
-            // 滚动到可视区域
+            // 始终将注释滚动到右侧列表顶部
             var listEl = document.querySelector('.annotations-list');
             if (listEl) {
-              var listRect = listEl.getBoundingClientRect();
-              var annotRect = annotEl.getBoundingClientRect();
-              if (annotRect.top < listRect.top || annotRect.bottom > listRect.bottom) {
-                annotEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              // 计算 annotation 相对于 list 内容区的偏移
+              var offset = 0;
+              var current = annotEl;
+              while (current && current !== listEl) {
+                offset += current.offsetTop;
+                current = current.offsetParent;
               }
+              // 减去 list 的 padding-top(12px) 使注释紧贴顶部
+              listEl.scrollTo({ top: Math.max(0, offset - 12), behavior: 'smooth' });
             }
           }
         });

@@ -38,6 +38,8 @@ export default function CategoryTree() {
     deleteSnippet,
     toggleFavorite,
     reorderSnippet,
+    moveSnippetToCategory,
+    moveCategory,
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
@@ -83,6 +85,8 @@ export default function CategoryTree() {
   const [draggingSnippetId, setDraggingSnippetId] = useState<string | null>(null);
   const [dragOverSnippetId, setDragOverSnippetId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<"before" | "after">("after");
+  const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
+  const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
 
   // 删除确认弹窗
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -240,7 +244,13 @@ export default function CategoryTree() {
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ type, id, x: e.clientX, y: e.clientY });
+    const menuWidth = 180;
+    const menuHeight = type === "category" ? 200 : 180;
+    let x = e.clientX;
+    let y = e.clientY;
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8;
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8;
+    setContextMenu({ type, id, x, y });
   };
 
   // 点击空白关闭右键菜单和下拉菜单
@@ -393,12 +403,52 @@ export default function CategoryTree() {
     const children = (category as any).children || [];
     const catSnippets = getCategorySnippets(category.id);
     const allSnippetsCount = getAllSnippetsCount(category.id);
+    const isCatDragOver = dragOverCategoryId === category.id;
 
     return (
       <div key={category.id}>
         <div
-          className={`flex items-center px-2 py-1.5 cursor-pointer rounded-md group hover:bg-slate-100 ${
+          draggable
+          onDragStart={(e) => {
+            setDraggingCategoryId(category.id);
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragEnd={() => {
+            setDraggingCategoryId(null);
+            setDragOverCategoryId(null);
+          }}
+          onDragOver={(e) => {
+            // 接受 snippet 拖拽（跨分类）或 category 拖拽
+            if (draggingSnippetId || (draggingCategoryId && draggingCategoryId !== category.id)) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setDragOverCategoryId(category.id);
+            }
+          }}
+          onDragLeave={() => {
+            if (dragOverCategoryId === category.id) {
+              setDragOverCategoryId(null);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            // 拖拽 snippet 到分类上 → 移动 snippet 到该分类
+            if (draggingSnippetId) {
+              moveSnippetToCategory(draggingSnippetId, category.id);
+            }
+            // 拖拽 category 到分类上 → 移动 category 到该分类下
+            if (draggingCategoryId && draggingCategoryId !== category.id) {
+              moveCategory(draggingCategoryId, category.id);
+              setExpandedIds((prev) => new Set(prev).add(category.id));
+            }
+            setDraggingSnippetId(null);
+            setDraggingCategoryId(null);
+            setDragOverCategoryId(null);
+          }}
+          className={`flex items-center px-2 py-1.5 cursor-pointer rounded-md group hover:bg-slate-100 transition-all ${
             isSelected ? "bg-primary-50 text-primary-600" : "text-slate-700"
+          } ${isCatDragOver ? "ring-2 ring-primary-300 bg-primary-50" : ""} ${
+            draggingCategoryId === category.id ? "opacity-40" : ""
           }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => {

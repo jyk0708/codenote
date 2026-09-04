@@ -77,6 +77,21 @@ export default function AnnotationPanel() {
   const selectedAnnot = annotations.find((a) => a.id === selectedAnnotationId);
   const popupAnnot = annotations.find((a) => a.id === popupAnnotId);
 
+  // 注释卡片 DOM 引用，用于自动滚动定位
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // 选中注释时自动滚动到对应卡片
+  useEffect(() => {
+    if (selectedAnnotationId) {
+      const el = cardRefs.current.get(selectedAnnotationId);
+      if (el) {
+        requestAnimationFrame(() => {
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      }
+    }
+  }, [selectedAnnotationId]);
+
   // 选中注释时自动展开并进入编辑
   if (
     selectedAnnotationId &&
@@ -368,6 +383,10 @@ export default function AnnotationPanel() {
           annotations.map((annot) => (
             <div
               key={annot.id}
+              ref={(el) => {
+                if (el) cardRefs.current.set(annot.id, el);
+                else cardRefs.current.delete(annot.id);
+              }}
               className={`rounded-lg border transition-all cursor-pointer ${
                 selectedAnnotationId === annot.id
                   ? "border-primary-300 bg-primary-50/50"

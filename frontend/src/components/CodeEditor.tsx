@@ -29,16 +29,25 @@ import {
   makeMarkdownImage,
 } from "@/lib/markdownEditor";
 import {
-  Copy,
-  ChevronDown,
-  Plus,
-  Edit3,
-  Eye,
-  Code,
-  FolderOpen,
-  Download,
-  FileText,
-  FileCode,
+Copy,
+ChevronDown,
+Plus,
+Edit3,
+Eye,
+Code,
+FolderOpen,
+Download,
+FileText,
+FileCode,
+PanelLeftClose,
+PanelLeftOpen,
+PanelRightClose,
+PanelRightOpen,
+User,
+LogOut,
+Image as ImageIcon,
+Maximize2,
+Minimize2,
 } from "lucide-react";
 import type { Annotation } from "@/types";
 import {
@@ -221,12 +230,14 @@ const annotationField = StateField.define<DecorationSet>({
 
 // 分类描述编辑器
 function CategoryDescriptionEditor() {
-  const { selectedCategoryId, getCurrentCategory, updateCategory } = useAppStore();
+  const { selectedCategoryId, getCurrentCategory, updateCategory, layout, toggleLeftPanel, toggleFocusMode, isLoggedIn, userNickname, userEmail, logout, cleanupOrphanedFiles } = useAppStore();
   const category = getCurrentCategory();
   const [editMode, setEditMode] = useState<"edit" | "split" | "preview">("split");
   const [localContent, setLocalContent] = useState("");
   const [debouncedContent, setDebouncedContent] = useState("");
   const [showCatExportMenu, setShowCatExportMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [cleaningUp, setCleaningUp] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -286,13 +297,29 @@ function CategoryDescriptionEditor() {
   return (
     <div className="flex flex-col h-full bg-white">
       {/* 工具栏 */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50 pr-36">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50">
         <div className="flex items-center gap-2">
           <FolderOpen size={15} className="text-primary-500" />
           <span className="font-medium text-sm text-slate-700">{category.name}</span>
           <span className="text-xs text-slate-400">分类描述</span>
         </div>
         <div className="flex items-center gap-1">
+          {/* 代码库显示/隐藏 */}
+          <button
+            onClick={toggleLeftPanel}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+            title={layout.leftPanelCollapsed ? "显示代码库 (Ctrl+B)" : "隐藏代码库 (Ctrl+B)"}
+          >
+            {layout.leftPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+          {/* 专注模式 */}
+          <button
+            onClick={toggleFocusMode}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+            title={layout.focusMode ? "退出专注模式 (F11)" : "专注模式 (F11)"}
+          >
+            {layout.focusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
           {/* 导出按钮 */}
           <div className="relative">
             <button
@@ -364,6 +391,65 @@ h1 { color: #1e293b; border-bottom: 2px solid #6366f1; padding-bottom: 8px; }
                 >
                   <FileCode size={14} className="text-slate-400" />
                   HTML (.html)
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 分隔线 */}
+          <div className="w-px h-5 bg-slate-200 mx-1" />
+
+          {/* 用户按钮 */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowUserMenu(!showUserMenu);
+              }}
+              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-200 text-slate-600 transition-colors"
+            >
+              <User size={14} />
+              <span className="max-w-[80px] truncate text-xs">
+                {isLoggedIn ? userNickname || userEmail : "登录"}
+              </span>
+            </button>
+            {showUserMenu && isLoggedIn && (
+              <div
+                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-slate-200 shadow-lg py-1 z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-3 py-2 border-b border-slate-100">
+                  <p className="text-sm font-medium text-slate-700 truncate">{userNickname || "用户"}</p>
+                  <p className="text-xs text-slate-400 truncate">{userEmail}</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    setCleaningUp(true);
+                    try {
+                      const count = await cleanupOrphanedFiles();
+                      alert(`清理完成！共删除了 ${count} 个失效文件。`);
+                    } catch (err: any) {
+                      alert("清理失败：" + (err.message || err));
+                    } finally {
+                      setCleaningUp(false);
+                    }
+                    setShowUserMenu(false);
+                  }}
+                  disabled={cleaningUp}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <ImageIcon size={14} />
+                  {cleaningUp ? "清理中..." : "清理失效图片"}
+                </button>
+                <button
+                  onClick={() => {
+                    logout();
+                    setShowUserMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
+                >
+                  <LogOut size={14} />
+                  退出登录
                 </button>
               </div>
             )}
@@ -487,6 +573,8 @@ export default function CodeEditor() {
   const [selectionRange, setSelectionRange] = useState<{ from: number; to: number } | null>(null);
   const [mdEditMode, setMdEditMode] = useState<"edit" | "split" | "preview">("split");
   const [debouncedContent, setDebouncedContent] = useState("");
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [cleaningUp, setCleaningUp] = useState(false);
   const annotationsRef = useRef<Annotation[]>([]);
   const activeAnnotRef = useRef<string | null>(null);
   const isAddingAnnotationRef = useRef(false);
@@ -502,6 +590,15 @@ export default function CodeEditor() {
     selectedCategoryId,
     getCurrentCategory,
     updateCategory,
+    layout,
+    toggleLeftPanel,
+    toggleRightPanel,
+    toggleFocusMode,
+    isLoggedIn,
+    userNickname,
+    userEmail,
+    logout,
+    cleanupOrphanedFiles,
   } = useAppStore();
 
   // 直接订阅 annotations 数组（原始引用）
@@ -900,7 +997,7 @@ export default function CodeEditor() {
   return (
     <div className="flex flex-col h-full bg-white relative">
       {/* 工具栏 */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50 pr-36">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50">
         <div className="flex items-center gap-3">
           {/* 标题 */}
           <input
@@ -988,6 +1085,87 @@ export default function CodeEditor() {
           >
             <Copy size={16} />
           </button>
+          {/* 代码库显示/隐藏 */}
+          <button
+            onClick={toggleLeftPanel}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+            title={layout.leftPanelCollapsed ? "显示代码库 (Ctrl+B)" : "隐藏代码库 (Ctrl+B)"}
+          >
+            {layout.leftPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+          {/* 注释显示/隐藏 */}
+          <button
+            onClick={toggleRightPanel}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+            title={layout.rightPanelCollapsed ? "显示注释栏 (Ctrl+/)" : "隐藏注释栏 (Ctrl+/)"}
+          >
+            {layout.rightPanelCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+          </button>
+          {/* 专注模式 */}
+          <button
+            onClick={toggleFocusMode}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+            title={layout.focusMode ? "退出专注模式 (F11)" : "专注模式 (F11)"}
+          >
+            {layout.focusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
+          {/* 分隔线 */}
+          <div className="w-px h-5 bg-slate-200 mx-1" />
+          {/* 用户按钮 */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowUserMenu(!showUserMenu);
+              }}
+              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-200 text-slate-600 transition-colors"
+            >
+              <User size={14} />
+              <span className="max-w-[80px] truncate text-xs">
+                {isLoggedIn ? userNickname || userEmail : "登录"}
+              </span>
+            </button>
+            {showUserMenu && isLoggedIn && (
+              <div
+                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-slate-200 shadow-lg py-1 z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-3 py-2 border-b border-slate-100">
+                  <p className="text-sm font-medium text-slate-700 truncate">{userNickname || "用户"}</p>
+                  <p className="text-xs text-slate-400 truncate">{userEmail}</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    setCleaningUp(true);
+                    try {
+                      const count = await cleanupOrphanedFiles();
+                      alert(`清理完成！共删除了 ${count} 个失效文件。`);
+                    } catch (err: any) {
+                      alert("清理失败：" + (err.message || err));
+                    } finally {
+                      setCleaningUp(false);
+                    }
+                    setShowUserMenu(false);
+                  }}
+                  disabled={cleaningUp}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <ImageIcon size={14} />
+                  {cleaningUp ? "清理中..." : "清理失效图片"}
+                </button>
+                <button
+                  onClick={() => {
+                    logout();
+                    setShowUserMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
+                >
+                  <LogOut size={14} />
+                  退出登录
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

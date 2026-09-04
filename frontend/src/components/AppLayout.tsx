@@ -8,38 +8,28 @@ import AnnotationPanel from "./AnnotationPanel";
 import AuthModal from "./AuthModal";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  User,
-  LogOut,
-  Image,
-  WifiOff,
-  Wifi,
-  X,
+ChevronLeft,
+ChevronRight,
+WifiOff,
+Wifi,
+X,
 } from "lucide-react";
 
 export default function AppLayout() {
   const {
     layout,
+    selectedSnippetId,
     toggleLeftPanel,
     toggleRightPanel,
     toggleFocusMode,
     isLoggedIn,
-    userNickname,
-    userEmail,
-    logout,
     checkAuth,
     isLoading,
-    cleanupOrphanedFiles,
   } = useAppStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<"left" | "right" | null>(null);
   const [showAuth, setShowAuth] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [cleaningUp, setCleaningUp] = useState(false);
 
   // 心跳检测
   const { isOnline, showWarning, dismissWarning, recheck } = useHeartbeat(15000);
@@ -128,37 +118,14 @@ export default function AppLayout() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleLeftPanel, toggleRightPanel, toggleFocusMode]);
 
-  // 点击空白关闭用户菜单
-  useEffect(() => {
-    const handleClick = () => setShowUserMenu(false);
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
-  }, []);
-
   const handleAuthSuccess = () => {
     setShowAuth(false);
     // 登录成功后重新检查认证状态，加载真实数据
     checkAuth();
   };
 
-  const handleCleanupFiles = async () => {
-    if (!confirm("确定要清理失效的图片文件吗？\n\n此操作会扫描所有注释中引用的图片，删除 MinIO 中未被引用的文件。\n\n注意：此操作不可撤销。")) {
-      return;
-    }
-    setCleaningUp(true);
-    setShowUserMenu(false);
-    try {
-      const count = await cleanupOrphanedFiles();
-      alert(`清理完成！共删除了 ${count} 个失效文件。`);
-    } catch (err: any) {
-      alert("清理失败：" + (err.message || err));
-    } finally {
-      setCleaningUp(false);
-    }
-  };
-
   const showLeft = !layout.leftPanelCollapsed && !layout.focusMode;
-  const showRight = !layout.rightPanelCollapsed && !layout.focusMode;
+  const showRight = !layout.rightPanelCollapsed && !layout.focusMode && selectedSnippetId !== null;
 
   if (isLoading) {
     return (
@@ -250,61 +217,6 @@ export default function AppLayout() {
 
       {/* 中间代码区 */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* 顶部用户按钮 */}
-        <div className="absolute top-3 right-3 z-10">
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isLoggedIn) {
-                  setShowUserMenu(!showUserMenu);
-                } else {
-                  setShowAuth(true);
-                }
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-white/80 backdrop-blur rounded-lg border border-slate-200 hover:border-primary-300 hover:bg-white transition-all text-sm text-slate-600"
-            >
-              <User size={14} />
-              <span className="max-w-[100px] truncate">
-                {isLoggedIn ? userNickname || userEmail : "登录"}
-              </span>
-            </button>
-
-            {/* 用户菜单 */}
-            {showUserMenu && isLoggedIn && (
-              <div
-                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-slate-200 shadow-lg py-1 z-20"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="px-3 py-2 border-b border-slate-100">
-                  <p className="text-sm font-medium text-slate-700 truncate">
-                    {userNickname || "用户"}
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">{userEmail}</p>
-                </div>
-                <button
-                  onClick={handleCleanupFiles}
-                  disabled={cleaningUp}
-                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
-                >
-                  <Image size={14} />
-                  {cleaningUp ? "清理中..." : "清理失效图片"}
-                </button>
-                <button
-                  onClick={() => {
-                    logout();
-                    setShowUserMenu(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
-                >
-                  <LogOut size={14} />
-                  退出登录
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
         <CodeEditor />
       </div>
 
@@ -326,8 +238,8 @@ export default function AppLayout() {
         </div>
       )}
 
-      {/* 右侧折叠按钮 */}
-      {!showRight && !layout.focusMode && (
+      {/* 右侧折叠按钮 - 仅在选中代码片段时显示 */}
+      {!showRight && !layout.focusMode && selectedSnippetId !== null && (
         <button
           onClick={toggleRightPanel}
           className="w-6 flex-shrink-0 flex items-center justify-center bg-white border-l border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-colors"
@@ -337,14 +249,6 @@ export default function AppLayout() {
         </button>
       )}
 
-      {/* 专注模式切换按钮 */}
-      <button
-        onClick={toggleFocusMode}
-        className="fixed bottom-4 right-4 w-10 h-10 rounded-full bg-white shadow-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-primary-500 hover:border-primary-300 transition-all z-50"
-        title={layout.focusMode ? "退出专注模式 (F11)" : "专注模式 (F11)"}
-      >
-        {layout.focusMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-      </button>
       </div>
     </div>
   );
