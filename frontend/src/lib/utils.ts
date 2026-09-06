@@ -226,6 +226,7 @@ function renderMarkdownCore(markdown: string): string {
 /**
  * 渲染 Mermaid 图表
  * 在 Markdown 渲染后，找到 .mermaid-diagram 元素并渲染
+ * 渲染后将原始代码保存在 data-mermaid-code 属性中，以便后续重新渲染
  */
 export function renderMermaidInContainer(container: HTMLElement) {
   const diagrams = container.querySelectorAll(".mermaid-diagram");
@@ -241,13 +242,40 @@ export function renderMermaidInContainer(container: HTMLElement) {
       // 使用 requestAnimationFrame 确保 DOM 已更新
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const { svg } = await mermaid.render(id, code);
-      el.outerHTML = `<div class="mermaid-container">${svg}</div>`;
+      el.outerHTML = `<div class="mermaid-container" data-mermaid-code="${encodeURIComponent(code)}">${svg}</div>`;
     } catch (err) {
       console.error("Mermaid render error:", err);
       el.outerHTML = `<div class="mermaid-error" style="color:#ef4444;padding:1em;background:#fef2f2;border-radius:6px;">
         <strong>Mermaid 渲染失败</strong><br/>
         <pre style="margin-top:0.5em;font-size:0.85em;white-space:pre-wrap;">${escapeHtml(String(err))}</pre>
       </div>`;
+    }
+  });
+}
+
+/**
+ * 重新渲染已有的 Mermaid 图表
+ * 找到 .mermaid-container[data-mermaid-code] 元素并重新渲染
+ * 用于窗口大小变化时重新适配
+ */
+export function rerenderMermaidInContainer(container: HTMLElement) {
+  const rendered = container.querySelectorAll(".mermaid-container[data-mermaid-code]");
+  if (rendered.length === 0) {
+    // 没有已渲染的，检查是否有未渲染的
+    renderMermaidInContainer(container);
+    return;
+  }
+
+  rendered.forEach(async (el, index) => {
+    const code = decodeURIComponent(el.getAttribute("data-mermaid-code") || "");
+    if (!code) return;
+    const id = `mermaid-svg-${Date.now()}-${index}`;
+    try {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const { svg } = await mermaid.render(id, code);
+      el.innerHTML = svg;
+    } catch (err) {
+      console.error("Mermaid re-render error:", err);
     }
   });
 }

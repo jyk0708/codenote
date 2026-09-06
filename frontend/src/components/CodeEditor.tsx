@@ -18,7 +18,7 @@ import { rust } from "@codemirror/lang-rust";
 import { markdown } from "@codemirror/lang-markdown";
 import { xml } from "@codemirror/lang-xml";
 import { useAppStore } from "@/store/useAppStore";
-import { getLanguageLabel, LANGUAGE_OPTIONS, offsetToLine, renderMarkdown, renderMermaidInContainer } from "@/lib/utils";
+import { getLanguageLabel, LANGUAGE_OPTIONS, offsetToLine, renderMarkdown, renderMermaidInContainer, rerenderMermaidInContainer } from "@/lib/utils";
 import {
   handleImagePaste,
   handleImageDrop,
@@ -284,6 +284,18 @@ function CategoryDescriptionEditor({ onUploadClick, onSettingsClick }: { onUploa
       return () => clearTimeout(timer);
     }
   }, [previewHtml, editMode]);
+
+  // 窗口大小变化时重新渲染 Mermaid
+  useEffect(() => {
+    if (!previewRef.current) return;
+    const ro = new ResizeObserver(() => {
+      if (previewRef.current) {
+        rerenderMermaidInContainer(previewRef.current);
+      }
+    });
+    ro.observe(previewRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   // 自动调整 textarea 高度
   useEffect(() => {
@@ -1023,6 +1035,25 @@ export default function CodeEditor() {
       return () => clearTimeout(timer);
     }
   }, [previewHtml, isMarkdown, mdEditMode]);
+
+  // 窗口大小变化时重新渲染 Mermaid
+  useEffect(() => {
+    if (!previewRef.current) return;
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (previewRef.current) {
+          rerenderMermaidInContainer(previewRef.current);
+        }
+      }, 200);
+    });
+    ro.observe(previewRef.current);
+    return () => {
+      clearTimeout(resizeTimer);
+      ro.disconnect();
+    };
+  }, []);
 
   // 切换编辑模式时刷新 CodeMirror 布局
   useEffect(() => {

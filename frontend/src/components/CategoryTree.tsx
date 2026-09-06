@@ -26,6 +26,7 @@ import {
 import type { Category, Snippet } from "@/types";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import UploadModal from "@/components/UploadModal";
 
 type ViewMode = "all" | "favorites";
 
@@ -66,6 +67,8 @@ export default function CategoryTree() {
     y: number;
   } | null>(null);
   const [plusDropdownId, setPlusDropdownId] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadParentId, setUploadParentId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 搜索
@@ -656,6 +659,16 @@ export default function CategoryTree() {
         <span className="font-semibold text-sm text-slate-700">代码库</span>
         <div className="flex items-center gap-1">
           <button
+            onClick={() => {
+              setUploadParentId(selectedCategoryId);
+              setShowUpload(true);
+            }}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-primary-50 text-slate-500 hover:text-primary-500 transition-colors"
+            title="上传文件/文件夹"
+          >
+            <Upload size={15} />
+          </button>
+          <button
             onClick={() => openSnippetModal(selectedCategoryId)}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-primary-50 text-slate-500 hover:text-primary-500 transition-colors"
             title="新建代码片段"
@@ -856,6 +869,17 @@ export default function CategoryTree() {
         >
           {contextMenu.type === "category" && (
             <>
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                onClick={() => {
+                  setUploadParentId(contextMenu.id);
+                  setShowUpload(true);
+                  setContextMenu(null);
+                }}
+              >
+                <Upload size={14} />
+                上传到此分类
+              </button>
               <button
                 className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                 onClick={() => openCategoryModal(contextMenu.id)}
@@ -1241,6 +1265,12 @@ export default function CategoryTree() {
           setDeleteTarget(null);
         }}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <UploadModal
+        isOpen={showUpload}
+        onClose={() => setShowUpload(false)}
+        parentCategoryId={uploadParentId}
       />
 
     </div>

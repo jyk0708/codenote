@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { renderMarkdown, offsetToLine, renderMermaidInContainer } from "@/lib/utils";
+import { renderMarkdown, offsetToLine, renderMermaidInContainer, rerenderMermaidInContainer } from "@/lib/utils";
 import {
   uploadImage,
   makeMarkdownImage,
@@ -237,6 +237,25 @@ export default function AnnotationPanel() {
         return () => clearTimeout(timer);
       }
     }, [html, annotId]);
+
+    // 窗口大小变化时重新渲染 Mermaid
+    useEffect(() => {
+      if (!containerRef.current) return;
+      let resizeTimer: ReturnType<typeof setTimeout>;
+      const ro = new ResizeObserver(() => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (containerRef.current) {
+            rerenderMermaidInContainer(containerRef.current);
+          }
+        }, 200);
+      });
+      ro.observe(containerRef.current);
+      return () => {
+        clearTimeout(resizeTimer);
+        ro.disconnect();
+      };
+    }, []);
 
     return (
       <div

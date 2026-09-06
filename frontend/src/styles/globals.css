@@ -339,8 +339,9 @@ body {
 }
 
 .markdown-body .mermaid-container svg {
-  max-width: 100%;
-  height: auto;
+  max-width: 100% !important;
+  width: 100% !important;
+  height: auto !important;
 }
 
 /* 确保 Markdown 内容可选 */
