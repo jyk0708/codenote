@@ -72,7 +72,7 @@ interface AppState {
 
   // 分类
   addCategory: (name: string, parentId: string | null) => Promise<Category | null>;
-  updateCategory: (id: string, data: { name?: string; description?: string; parentId?: string | null; sortOrder?: number }) => Promise<void>;
+  updateCategory: (id: string, data: { name?: string; description?: string; brief?: string; parentId?: string | null; sortOrder?: number }) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   selectCategory: (id: string | null) => void;
   addCategoryTree: (path: string, parentId: string | null) => Promise<Category | null>;

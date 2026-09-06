@@ -63,6 +63,9 @@ public class CategoryService {
         if (request.getDescription() != null) {
             category.setDescription(request.getDescription());
         }
+        if (request.getBrief() != null) {
+            category.setBrief(request.getBrief());
+        }
         if (request.getSortOrder() != null) {
             category.setSortOrder(request.getSortOrder());
         }

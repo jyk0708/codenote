@@ -5,6 +5,7 @@ export interface Category {
   parentId: string | null;
   sortOrder: number;
   icon?: string;
+  brief?: string;
   description?: string;
   createdAt: string;
   updatedAt: string;

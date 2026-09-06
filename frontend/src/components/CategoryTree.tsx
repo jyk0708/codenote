@@ -162,7 +162,7 @@ export default function CategoryTree() {
   // 编辑分类弹窗
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState("");
-  const [editCategoryDescription, setEditCategoryDescription] = useState("");
+  const [editCategoryBrief, setEditCategoryBrief] = useState("");
   const [editCategorySortOrder, setEditCategorySortOrder] = useState(0);
 
   // 新建片段弹窗
@@ -328,7 +328,7 @@ export default function CategoryTree() {
     if (!cat) return;
     setEditCategoryId(categoryId);
     setEditCategoryName(cat.name);
-    setEditCategoryDescription(cat.description || "");
+    setEditCategoryBrief(cat.brief || "");
     setEditCategorySortOrder(cat.sortOrder ?? 0);
     setContextMenu(null);
   };
@@ -340,7 +340,7 @@ export default function CategoryTree() {
     if (!name) return;
     await updateCategory(editCategoryId, {
       name,
-      description: editCategoryDescription,
+      brief: editCategoryBrief,
       sortOrder: editCategorySortOrder,
     });
     setEditCategoryId(null);
@@ -739,8 +739,9 @@ export default function CategoryTree() {
               <Folder size={16} className="text-amber-500" />
             )}
             {/* 有描述时的标记 */}
-            {category.description && category.description.trim().length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white" title="有分类描述" />
+            {((category.description && category.description.trim().length > 0) ||
+              (category.brief && category.brief.trim().length > 0)) && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white" title="有描述" />
             )}
           </span>
 
@@ -768,9 +769,9 @@ export default function CategoryTree() {
                     {allSnippetsCount}
                   </span>
                 </div>
-                {category.description && category.description.trim().length > 0 && (
+                {category.brief && category.brief.trim().length > 0 && (
                   <p className="text-xs text-slate-400 mt-0.5 line-clamp-1 leading-relaxed">
-                    {category.description}
+                    {category.brief}
                   </p>
                 )}
               </div>
@@ -1332,12 +1333,12 @@ export default function CategoryTree() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              描述
-              <span className="text-slate-400 font-normal ml-1">（可选）</span>
+              简要描述
+              <span className="text-slate-400 font-normal ml-1">（可选，显示在分类名下方）</span>
             </label>
             <textarea
-              value={editCategoryDescription}
-              onChange={(e) => setEditCategoryDescription(e.target.value)}
+              value={editCategoryBrief}
+              onChange={(e) => setEditCategoryBrief(e.target.value)}
               placeholder="简要描述这个分类的用途..."
               rows={2}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all resize-none"

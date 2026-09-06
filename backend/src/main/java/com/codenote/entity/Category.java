@@ -39,6 +39,9 @@ public class Category {
 
     private String icon;
 
+    @Column(length = 500)
+    private String brief;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

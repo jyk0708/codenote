@@ -12,5 +12,7 @@ public class CategoryRequest {
 
     private String description;
 
+    private String brief;
+
     private Integer sortOrder;
 }
