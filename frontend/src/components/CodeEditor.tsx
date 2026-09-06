@@ -71,6 +71,7 @@ const languageExtensions: Record<string, () => any> = {
   sql: () => sql(),
   markdown: () => markdown(),
   xml: () => xml(),
+  powershell: () => javascript(),
 };
 
 // 定义设置注释装饰的 Effect

@@ -312,6 +312,7 @@ export const LANGUAGE_OPTIONS = [
   { value: "markdown", label: "Markdown", mode: "markdown" },
   { value: "xml", label: "XML", mode: "xml" },
   { value: "bash", label: "Bash", mode: "shell" },
+  { value: "powershell", label: "PowerShell", mode: "powershell" },
   { value: "yaml", label: "YAML", mode: "yaml" },
 ];
 

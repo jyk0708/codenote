@@ -73,7 +73,7 @@ export const categoryApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  update: (id: string, data: { name?: string; description?: string; parentId?: string | null }) =>
+  update: (id: string, data: { name?: string; description?: string; parentId?: string | null; sortOrder?: number }) =>
     request<any>(`/categories/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),

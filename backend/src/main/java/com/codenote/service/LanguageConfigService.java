@@ -7,7 +7,9 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class LanguageConfigService {
@@ -25,6 +27,8 @@ public class LanguageConfigService {
             initBuiltInLanguages(userId);
             return languageConfigRepository.findByUserIdOrderBySortOrderAsc(userId);
         }
+        // 为已有用户补充缺失的内置语言和扩展名
+        ensureBuiltInLanguages(userId, configs);
         return configs;
     }
 
@@ -90,7 +94,8 @@ public class LanguageConfigService {
             {"sql", "SQL", "sql", ".sql"},
             {"markdown", "Markdown", "markdown", ".md,.markdown,.mdx"},
             {"xml", "XML", "xml", ".xml,.svg,.xsd,.xsl"},
-            {"bash", "Bash", "shell", ".sh,.bash,.zsh"},
+            {"bash", "Bash", "shell", ".sh,.bash,.zsh,.bat,.cmd"},
+            {"powershell", "PowerShell", "powershell", ".ps1,.psm1,.psd1"},
             {"yaml", "YAML", "yaml", ".yaml,.yml"},
         };
 
@@ -105,6 +110,40 @@ public class LanguageConfigService {
                     .isBuiltIn(true)
                     .build();
             languageConfigRepository.save(config);
+        }
+    }
+
+    private void ensureBuiltInLanguages(UUID userId, List<LanguageConfig> existing) {
+        Set<String> existingValues = existing.stream()
+                .map(LanguageConfig::getValue)
+                .collect(Collectors.toSet());
+
+        // PowerShell 是新增的内置语言
+        if (!existingValues.contains("powershell")) {
+            int sortOrder = existing.size();
+            LanguageConfig config = LanguageConfig.builder()
+                    .userId(userId)
+                    .value("powershell")
+                    .name("PowerShell")
+                    .mode("powershell")
+                    .extensions(".ps1,.psm1,.psd1")
+                    .sortOrder(sortOrder)
+                    .isBuiltIn(true)
+                    .build();
+            languageConfigRepository.save(config);
+            existing.add(config);
+        }
+
+        // 为已有的内置 Bash 配置补充 .bat,.cmd 扩展名
+        for (LanguageConfig config : existing) {
+            if ("bash".equals(config.getValue())
+                    && config.getIsBuiltIn() != null && config.getIsBuiltIn()) {
+                String exts = config.getExtensions();
+                if (exts != null && !exts.contains(".bat")) {
+                    config.setExtensions(exts + ",.bat,.cmd");
+                    languageConfigRepository.save(config);
+                }
+            }
         }
     }
 }

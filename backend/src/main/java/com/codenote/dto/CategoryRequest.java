@@ -11,4 +11,6 @@ public class CategoryRequest {
     private UUID parentId;
 
     private String description;
+
+    private Integer sortOrder;
 }

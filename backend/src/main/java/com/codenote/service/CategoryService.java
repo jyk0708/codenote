@@ -63,6 +63,9 @@ public class CategoryService {
         if (request.getDescription() != null) {
             category.setDescription(request.getDescription());
         }
+        if (request.getSortOrder() != null) {
+            category.setSortOrder(request.getSortOrder());
+        }
 
         return categoryRepository.save(category);
     }

@@ -50,6 +50,7 @@ export default function CategoryTree() {
     reorderSnippet,
     moveSnippetToCategory,
     moveCategory,
+    reorderCategory,
     getSnippetPath,
     toggleLeftPanel,
     addCategoryTree,
@@ -153,6 +154,12 @@ export default function CategoryTree() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryParentId, setNewCategoryParentId] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategorySortOrder, setNewCategorySortOrder] = useState<number | "">("");
+
+  // 编辑分类弹窗
+  const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
+  const [editCategorySortOrder, setEditCategorySortOrder] = useState(0);
 
   // 新建片段弹窗
   const [showSnippetModal, setShowSnippetModal] = useState(false);
@@ -176,6 +183,7 @@ export default function CategoryTree() {
   const [dragPosition, setDragPosition] = useState<"before" | "after">("after");
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
   const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
+  const [dragOverCategoryPosition, setDragOverCategoryPosition] = useState<"before" | "after" | null>(null);
 
   // 删除确认弹窗
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -244,6 +252,7 @@ export default function CategoryTree() {
   const openCategoryModal = (parentId: string | null) => {
     setNewCategoryParentId(parentId);
     setNewCategoryName("");
+    setNewCategorySortOrder("");
     setShowCategoryModal(true);
     setContextMenu(null);
   };
@@ -252,11 +261,37 @@ export default function CategoryTree() {
   const handleCreateCategory = async () => {
     const name = newCategoryName.trim();
     if (!name) return;
-    await addCategoryTree(name, newCategoryParentId);
+    const created = await addCategoryTree(name, newCategoryParentId);
+    // 如果指定了排序序号，更新它
+    if (created && newCategorySortOrder !== "") {
+      await updateCategory(created.id, { sortOrder: newCategorySortOrder });
+    }
     if (newCategoryParentId) {
       setExpandedIds((prev) => new Set(prev).add(newCategoryParentId));
     }
     setShowCategoryModal(false);
+  };
+
+  // 打开编辑分类弹窗
+  const openEditCategoryModal = (categoryId: string) => {
+    const cat = categories.find((c) => c.id === categoryId);
+    if (!cat) return;
+    setEditCategoryId(categoryId);
+    setEditCategoryName(cat.name);
+    setEditCategorySortOrder(cat.sortOrder ?? 0);
+    setContextMenu(null);
+  };
+
+  // 提交编辑分类
+  const handleEditCategory = async () => {
+    if (!editCategoryId) return;
+    const name = editCategoryName.trim();
+    if (!name) return;
+    await updateCategory(editCategoryId, {
+      name,
+      sortOrder: editCategorySortOrder,
+    });
+    setEditCategoryId(null);
   };
 
   // 删除分类
@@ -536,6 +571,8 @@ export default function CategoryTree() {
     const catSnippets = getCategorySnippets(category.id);
     const allSnippetsCount = getAllSnippetsCount(category.id);
     const isCatDragOver = dragOverCategoryId === category.id;
+    const showCatLineBefore = isCatDragOver && dragOverCategoryPosition === "before";
+    const showCatLineAfter = isCatDragOver && dragOverCategoryPosition === "after";
 
     return (
       <div key={category.id}>
@@ -548,18 +585,33 @@ export default function CategoryTree() {
           onDragEnd={() => {
             setDraggingCategoryId(null);
             setDragOverCategoryId(null);
+            setDragOverCategoryPosition(null);
           }}
           onDragOver={(e) => {
             // 接受 snippet 拖拽（跨分类）或 category 拖拽
             if (draggingSnippetId || (draggingCategoryId && draggingCategoryId !== category.id)) {
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
+
+              // 如果是分类拖拽且同父级，计算 before/after 排序位置
+              if (draggingCategoryId && draggingCategoryId !== category.id) {
+                const sourceCat = categories.find((c) => c.id === draggingCategoryId);
+                if (sourceCat && sourceCat.parentId === category.parentId) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const midY = rect.top + rect.height / 2;
+                  setDragOverCategoryPosition(e.clientY < midY ? "before" : "after");
+                } else {
+                  setDragOverCategoryPosition(null);
+                }
+              }
+
               setDragOverCategoryId(category.id);
             }
           }}
           onDragLeave={() => {
             if (dragOverCategoryId === category.id) {
               setDragOverCategoryId(null);
+              setDragOverCategoryPosition(null);
             }
           }}
           onDrop={(e) => {
@@ -568,18 +620,32 @@ export default function CategoryTree() {
             if (draggingSnippetId) {
               moveSnippetToCategory(draggingSnippetId, category.id);
             }
-            // 拖拽 category 到分类上 → 移动 category 到该分类下
+            // 拖拽 category 到分类上
             if (draggingCategoryId && draggingCategoryId !== category.id) {
-              moveCategory(draggingCategoryId, category.id);
-              setExpandedIds((prev) => new Set(prev).add(category.id));
+              const sourceCat = categories.find((c) => c.id === draggingCategoryId);
+              if (sourceCat && sourceCat.parentId === category.parentId && dragOverCategoryPosition) {
+                // 同父级 → 排序
+                reorderCategory(draggingCategoryId, category.id, dragOverCategoryPosition);
+              } else {
+                // 跨父级 → 移动到该分类下作为子分类
+                moveCategory(draggingCategoryId, category.id);
+                setExpandedIds((prev) => new Set(prev).add(category.id));
+              }
             }
             setDraggingSnippetId(null);
             setDraggingCategoryId(null);
             setDragOverCategoryId(null);
+            setDragOverCategoryPosition(null);
           }}
-          className={`flex items-center px-2 py-1.5 cursor-pointer rounded-md group hover:bg-slate-100 transition-all ${
+          className={`flex items-center px-2 py-1.5 cursor-pointer rounded-md group hover:bg-slate-100 transition-all relative ${
             isSelected ? "bg-primary-50 text-primary-600" : "text-slate-700"
-          } ${isCatDragOver ? "ring-2 ring-primary-300 bg-primary-50" : ""} ${
+          } ${
+            isCatDragOver && dragOverCategoryPosition
+              ? ""
+              : isCatDragOver
+                ? "ring-2 ring-primary-300 bg-primary-50"
+                : ""
+          } ${
             draggingCategoryId === category.id ? "opacity-40" : ""
           }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -593,6 +659,9 @@ export default function CategoryTree() {
           }}
           onContextMenu={(e) => handleContextMenu(e, "category", category.id)}
         >
+          {showCatLineBefore && (
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary-400 z-10" />
+          )}
           <button
             className="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-600 flex-shrink-0"
             onClick={(e) => {
@@ -686,6 +755,9 @@ export default function CategoryTree() {
                 )}
               </div>
             </>
+          )}
+          {showCatLineAfter && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-400 z-10" />
           )}
         </div>
 
@@ -981,15 +1053,10 @@ export default function CategoryTree() {
               <div className="h-px bg-slate-100 my-1" />
               <button
                 className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
-                onClick={() => {
-                  const cat = categories.find(
-                    (c) => c.id === contextMenu.id
-                  );
-                  if (cat) startRename(cat);
-                }}
+                onClick={() => openEditCategoryModal(contextMenu.id)}
               >
                 <Pencil size={14} className="text-blue-500" />
-                重命名
+                编辑分类
               </button>
               <button
                 className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
@@ -1107,9 +1174,80 @@ export default function CategoryTree() {
               支持多级分类，例如：pages/Dapp/Home 将创建 pages → Dapp → Home 三级分类
             </p>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              排序序号
+              <span className="text-slate-400 font-normal ml-1">（可选，数字越小越靠前，留空则自动排到最后）</span>
+            </label>
+            <input
+              type="number"
+              value={newCategorySortOrder}
+              onChange={(e) => setNewCategorySortOrder(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
+              placeholder="自动"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+            />
+          </div>
           {newCategoryParentId && (
             <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-md">
               父分类：{categories.find((c) => c.id === newCategoryParentId)?.name}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* 编辑分类弹窗 */}
+      <Modal
+        isOpen={!!editCategoryId}
+        onClose={() => setEditCategoryId(null)}
+        title="编辑分类"
+        footer={
+          <>
+            <button
+              onClick={() => setEditCategoryId(null)}
+              className="px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleEditCategory}
+              disabled={!editCategoryName.trim()}
+              className="px-4 py-1.5 text-sm bg-primary-500 text-white rounded-md hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              保存
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              分类名称
+            </label>
+            <input
+              value={editCategoryName}
+              onChange={(e) => setEditCategoryName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleEditCategory();
+              }}
+              placeholder="分类名称"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              排序序号
+              <span className="text-slate-400 font-normal ml-1">（数字越小越靠前）</span>
+            </label>
+            <input
+              type="number"
+              value={editCategorySortOrder}
+              onChange={(e) => setEditCategorySortOrder(parseInt(e.target.value) || 0)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+            />
+          </div>
+          {editCategoryId && (
+            <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-md">
+              分类描述可在选中分类后于编辑区编辑
             </div>
           )}
         </div>

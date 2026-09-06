@@ -77,6 +77,7 @@ interface AppState {
   selectCategory: (id: string | null) => void;
   addCategoryTree: (path: string, parentId: string | null) => Promise<Category | null>;
   moveCategory: (categoryId: string, targetParentId: string) => Promise<void>;
+  reorderCategory: (sourceId: string, targetId: string, position: "before" | "after") => Promise<void>;
   getCurrentCategory: () => Category | null;
 
   // 片段
@@ -437,6 +438,47 @@ export const useAppStore = create<AppState>((set, get) => ({
       await categoryApi.update(categoryId, { parentId: targetParentId });
     } catch (e) {
       console.error("Failed to move category:", e);
+    }
+  },
+
+  reorderCategory: async (sourceId, targetId, position) => {
+    const { isLoggedIn, categories } = get();
+    const source = categories.find((c) => c.id === sourceId);
+    const target = categories.find((c) => c.id === targetId);
+    if (!source || !target) return;
+    // 同一父级下才能排序
+    if (source.parentId !== target.parentId) return;
+
+    set((state) => {
+      const newCategories = [...state.categories];
+      const sourceIdx = newCategories.findIndex((c) => c.id === sourceId);
+      const targetIdx = newCategories.findIndex((c) => c.id === targetId);
+      if (sourceIdx < 0 || targetIdx < 0) return state;
+
+      const [removed] = newCategories.splice(sourceIdx, 1);
+      const insertIdx = newCategories.findIndex((c) => c.id === targetId);
+      const actualInsertIdx = position === "after" ? insertIdx + 1 : insertIdx;
+      newCategories.splice(actualInsertIdx, 0, removed);
+
+      // 更新同一父级下所有分类的 sortOrder
+      const parentId = removed.parentId;
+      const siblingCategories = newCategories.filter((c) => c.parentId === parentId);
+      siblingCategories.forEach((c, i) => {
+        c.sortOrder = i;
+      });
+
+      return { categories: newCategories };
+    });
+
+    if (!isLoggedIn) return;
+    try {
+      const updatedCategories = get().categories;
+      const updatedSource = updatedCategories.find((c) => c.id === sourceId);
+      if (updatedSource) {
+        await categoryApi.update(sourceId, { sortOrder: updatedSource.sortOrder });
+      }
+    } catch (e) {
+      console.error("Failed to reorder category:", e);
     }
   },
 
