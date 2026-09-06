@@ -11,7 +11,6 @@ public class AnnotationRequest {
     @NotBlank
     private String title;
 
-    @NotBlank
     private String contentMarkdown;
 
     @NotNull

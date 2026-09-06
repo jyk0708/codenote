@@ -10,6 +10,8 @@ import {
   Plus,
   ChevronRight,
   ChevronDown,
+  ChevronsDown,
+  ChevronsUp,
   Pencil,
   Trash2,
   Search,
@@ -22,6 +24,7 @@ import {
   FileText,
   Link2,
   PanelLeftClose,
+  FolderTree,
 } from "lucide-react";
 import type { Category, Snippet } from "@/types";
 import Modal from "@/components/ui/Modal";
@@ -227,6 +230,52 @@ export default function CategoryTree() {
       } else {
         next.add(id);
       }
+      return next;
+    });
+  };
+
+  // 全部展开
+  const expandAll = () => {
+    const allIds = new Set(categories.map((c) => c.id));
+    setExpandedIds(allIds);
+  };
+
+  // 全部折叠
+  const collapseAll = () => {
+    setExpandedIds(new Set());
+  };
+
+  // 展开某分类的所有子分类
+  const expandSubtree = (categoryId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.add(categoryId);
+      const collectChildren = (parentId: string) => {
+        categories
+          .filter((c) => c.parentId === parentId)
+          .forEach((c) => {
+            next.add(c.id);
+            collectChildren(c.id);
+          });
+      };
+      collectChildren(categoryId);
+      return next;
+    });
+  };
+
+  // 折叠某分类的所有子分类
+  const collapseSubtree = (categoryId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      const collectChildren = (parentId: string) => {
+        categories
+          .filter((c) => c.parentId === parentId)
+          .forEach((c) => {
+            next.delete(c.id);
+            collectChildren(c.id);
+          });
+      };
+      collectChildren(categoryId);
       return next;
     });
   };
@@ -817,6 +866,21 @@ export default function CategoryTree() {
           </button>
           <div className="w-px h-4 bg-slate-200 mx-0.5" />
           <button
+            onClick={expandAll}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            title="全部展开"
+          >
+            <ChevronsDown size={15} />
+          </button>
+          <button
+            onClick={collapseAll}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            title="全部折叠"
+          >
+            <ChevronsUp size={15} />
+          </button>
+          <div className="w-px h-4 bg-slate-200 mx-0.5" />
+          <button
             onClick={toggleLeftPanel}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
             title="隐藏代码库 (Alt+B)"
@@ -1026,6 +1090,27 @@ export default function CategoryTree() {
               >
                 <FileCode size={14} className="text-emerald-500" />
                 新建代码片段
+              </button>
+              <div className="h-px bg-slate-100 my-1" />
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                onClick={() => {
+                  expandSubtree(contextMenu.id);
+                  setContextMenu(null);
+                }}
+              >
+                <ChevronsDown size={14} className="text-cyan-500" />
+                展开所有子分类
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                onClick={() => {
+                  collapseSubtree(contextMenu.id);
+                  setContextMenu(null);
+                }}
+              >
+                <ChevronsUp size={14} className="text-slate-500" />
+                折叠所有子分类
               </button>
               <div className="h-px bg-slate-100 my-1" />
               <button
