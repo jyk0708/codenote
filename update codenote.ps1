@@ -104,7 +104,8 @@ else{
 #region 步骤C：远程docker‑compose down
 Write-Host "`n[C] 远程执行 docker-compose down" -ForegroundColor Cyan
 $cmdDown = "cd $RemoteBaseDir ; docker-compose down 2>&1"
-& plink.exe -batch -utf8 -pw $RemotePassword "$RemoteUser@$RemoteHost" $cmdDown
+# 旧版plink不支持-utf8，已移除
+& plink.exe -batch -pw $RemotePassword "$RemoteUser@$RemoteHost" $cmdDown
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "docker-compose down 返回非0，容器可能未运行，继续"
 }
@@ -114,7 +115,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "`n[D] 开始上传文件到服务器" -ForegroundColor Cyan
 if( ($DeployMode -eq "all") -or ($DeployMode -eq "backend") ){
     Write-Host "👉 上传 backend"
-    & pscp.exe -batch -utf8 -pw $RemotePassword -r $destBackend "$RemoteUser@$RemoteHost`:$RemoteBaseDir/"
+    & pscp.exe -batch -pw $RemotePassword -r $destBackend "$RemoteUser@$RemoteHost`:$RemoteBaseDir/"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "backend上传失败"
         pause
@@ -123,7 +124,7 @@ if( ($DeployMode -eq "all") -or ($DeployMode -eq "backend") ){
 }
 if( ($DeployMode -eq "all") -or ($DeployMode -eq "frontend") ){
     Write-Host "👉 上传 frontend"
-    & pscp.exe -batch -utf8 -pw $RemotePassword -r $destFrontend "$RemoteUser@$RemoteBaseDir/"
+    & pscp.exe -batch -pw $RemotePassword -r $destFrontend "$RemoteUser@$RemoteHost`:$RemoteBaseDir/"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "frontend上传失败"
         pause
@@ -135,7 +136,7 @@ if( ($DeployMode -eq "all") -or ($DeployMode -eq "frontend") ){
 #region 步骤F：build && up‑d
 Write-Host "`n[F] 执行 docker-compose build --no-cache && docker-compose up -d" -ForegroundColor Cyan
 $cmdDeploy = "cd $RemoteBaseDir ; docker-compose build --no-cache && docker-compose up -d 2>&1"
-& plink.exe -batch -utf8 -pw $RemotePassword "$RemoteUser@$RemoteHost" $cmdDeploy
+& plink.exe -batch -pw $RemotePassword "$RemoteUser@$RemoteHost" $cmdDeploy
 if ($LASTEXITCODE -ne 0) {
     Write-Error "部署执行失败"
     pause
