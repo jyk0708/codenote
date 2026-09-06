@@ -162,6 +162,7 @@ export default function CategoryTree() {
   // 编辑分类弹窗
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState("");
+  const [editCategoryDescription, setEditCategoryDescription] = useState("");
   const [editCategorySortOrder, setEditCategorySortOrder] = useState(0);
 
   // 新建片段弹窗
@@ -327,6 +328,7 @@ export default function CategoryTree() {
     if (!cat) return;
     setEditCategoryId(categoryId);
     setEditCategoryName(cat.name);
+    setEditCategoryDescription(cat.description || "");
     setEditCategorySortOrder(cat.sortOrder ?? 0);
     setContextMenu(null);
   };
@@ -338,6 +340,7 @@ export default function CategoryTree() {
     if (!name) return;
     await updateCategory(editCategoryId, {
       name,
+      description: editCategoryDescription,
       sortOrder: editCategorySortOrder,
     });
     setEditCategoryId(null);
@@ -756,12 +759,21 @@ export default function CategoryTree() {
             />
           ) : (
             <>
-              <span className="flex-1 min-w-0 truncate text-sm font-medium">
-                {category.name}
-              </span>
-              <span className="text-xs text-slate-400 ml-1 flex-shrink-0 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                {allSnippetsCount}
-              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-medium">
+                    {category.name}
+                  </span>
+                  <span className="text-xs text-slate-400 flex-shrink-0 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                    {allSnippetsCount}
+                  </span>
+                </div>
+                {category.description && category.description.trim().length > 0 && (
+                  <p className="text-xs text-slate-400 mt-0.5 line-clamp-1 leading-relaxed">
+                    {category.description}
+                  </p>
+                )}
+              </div>
               {/* 悬停显示操作按钮 */}
               <div className="relative flex-shrink-0">
                 <button
@@ -1320,6 +1332,19 @@ export default function CategoryTree() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              描述
+              <span className="text-slate-400 font-normal ml-1">（可选）</span>
+            </label>
+            <textarea
+              value={editCategoryDescription}
+              onChange={(e) => setEditCategoryDescription(e.target.value)}
+              placeholder="简要描述这个分类的用途..."
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
               排序序号
               <span className="text-slate-400 font-normal ml-1">（数字越小越靠前）</span>
             </label>
@@ -1330,11 +1355,6 @@ export default function CategoryTree() {
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
             />
           </div>
-          {editCategoryId && (
-            <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-md">
-              分类描述可在选中分类后于编辑区编辑
-            </div>
-          )}
         </div>
       </Modal>
 
