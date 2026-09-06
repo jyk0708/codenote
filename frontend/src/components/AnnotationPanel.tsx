@@ -229,7 +229,12 @@ export default function AnnotationPanel() {
 
     useEffect(() => {
       if (containerRef.current) {
-        renderMermaidInContainer(containerRef.current);
+        const timer = setTimeout(() => {
+          if (containerRef.current) {
+            renderMermaidInContainer(containerRef.current);
+          }
+        }, 50);
+        return () => clearTimeout(timer);
       }
     }, [html, annotId]);
 

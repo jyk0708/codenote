@@ -229,12 +229,17 @@ function renderMarkdownCore(markdown: string): string {
  */
 export function renderMermaidInContainer(container: HTMLElement) {
   const diagrams = container.querySelectorAll(".mermaid-diagram");
+  if (diagrams.length === 0) return;
+
   diagrams.forEach(async (el, index) => {
     const codeEl = el.querySelector("code");
     if (!codeEl) return;
     const code = codeEl.textContent || "";
     const id = `mermaid-svg-${Date.now()}-${index}`;
     try {
+      // mermaid.render 需要元素在 DOM 中可见
+      // 使用 requestAnimationFrame 确保 DOM 已更新
+      await new Promise((resolve) => requestAnimationFrame(resolve));
       const { svg } = await mermaid.render(id, code);
       el.outerHTML = `<div class="mermaid-container">${svg}</div>`;
     } catch (err) {

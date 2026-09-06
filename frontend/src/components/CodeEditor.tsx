@@ -276,7 +276,12 @@ function CategoryDescriptionEditor({ onUploadClick, onSettingsClick }: { onUploa
   // 渲染 Mermaid
   useEffect(() => {
     if (previewRef.current && previewHtml) {
-      renderMermaidInContainer(previewRef.current);
+      const timer = setTimeout(() => {
+        if (previewRef.current) {
+          renderMermaidInContainer(previewRef.current);
+        }
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [previewHtml, editMode]);
 
@@ -1009,7 +1014,13 @@ export default function CodeEditor() {
   // Markdown 预览：渲染 Mermaid 图表
   useEffect(() => {
     if (previewRef.current && isMarkdown && previewHtml) {
-      renderMermaidInContainer(previewRef.current);
+      // 延迟一帧确保 DOM 已完全挂载和可见
+      const timer = setTimeout(() => {
+        if (previewRef.current) {
+          renderMermaidInContainer(previewRef.current);
+        }
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [previewHtml, isMarkdown, mdEditMode]);
 
