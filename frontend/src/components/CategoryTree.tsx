@@ -877,21 +877,21 @@ export default function CategoryTree() {
                   setContextMenu(null);
                 }}
               >
-                <Upload size={14} />
+                <Upload size={14} className="text-primary-500" />
                 上传到此分类
               </button>
               <button
                 className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                 onClick={() => openCategoryModal(contextMenu.id)}
               >
-                <Folder size={14} />
+                <FolderPlus size={14} className="text-amber-500" />
                 新建子分类
               </button>
               <button
                 className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                 onClick={() => openSnippetModal(contextMenu.id)}
               >
-                <FileCode size={14} />
+                <FileCode size={14} className="text-emerald-500" />
                 新建代码片段
               </button>
               <div className="h-px bg-slate-100 my-1" />
@@ -904,7 +904,7 @@ export default function CategoryTree() {
                   }
                 }}
               >
-                <Copy size={14} />
+                <Copy size={14} className="text-sky-500" />
                 复制分类名
               </button>
               <button
@@ -914,7 +914,7 @@ export default function CategoryTree() {
                   copyToClipboard(path);
                 }}
               >
-                <Link2 size={14} />
+                <Link2 size={14} className="text-violet-500" />
                 复制绝对路径
               </button>
               <div className="h-px bg-slate-100 my-1" />
@@ -927,14 +927,14 @@ export default function CategoryTree() {
                   if (cat) startRename(cat);
                 }}
               >
-                <Pencil size={14} />
+                <Pencil size={14} className="text-blue-500" />
                 重命名
               </button>
               <button
                 className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
                 onClick={() => handleDeleteCategory(contextMenu.id)}
               >
-                <Trash2 size={14} />
+                <Trash2 size={14} className="text-red-500" />
                 删除分类
               </button>
             </>
@@ -951,7 +951,7 @@ export default function CategoryTree() {
                   setContextMenu(null);
                 }}
               >
-                <Star size={14} />
+                <Star size={14} className="text-amber-500" />
                 {snippets.find((s) => s.id === contextMenu.id)?.favorite
                   ? "取消收藏"
                   : "添加收藏"}
@@ -964,7 +964,7 @@ export default function CategoryTree() {
                   if (s) copyToClipboard(s.title);
                 }}
               >
-                <Copy size={14} />
+                <Copy size={14} className="text-sky-500" />
                 复制文件名
               </button>
               <button
@@ -974,7 +974,7 @@ export default function CategoryTree() {
                   copyToClipboard(path);
                 }}
               >
-                <FileText size={14} />
+                <FileText size={14} className="text-violet-500" />
                 复制文件绝对路径
               </button>
               <div className="h-px bg-slate-100 my-1" />
@@ -982,7 +982,7 @@ export default function CategoryTree() {
                 className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                 onClick={() => openEditSnippetModal(contextMenu.id)}
               >
-                <Pencil size={14} />
+                <Pencil size={14} className="text-blue-500" />
                 编辑片段
               </button>
               <button
@@ -997,7 +997,7 @@ export default function CategoryTree() {
                   setContextMenu(null);
                 }}
               >
-                <Trash2 size={14} />
+                <Trash2 size={14} className="text-red-500" />
                 删除片段
               </button>
             </>

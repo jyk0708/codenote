@@ -69,7 +69,7 @@ if([string]::IsNullOrWhiteSpace($commitMsg)){
 }
 else{
     git add .
-    git commit -m "$commitMsg"
+    git -c core.safecrlf=false commit -m "$commitMsg"
     git push
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "git操作返回非0，请检查git输出"

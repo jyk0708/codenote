@@ -1,0 +1,42 @@
+# ========== 你截图框选的文件 ==========
+ps1一键打包成exe文件.bat
+update codenote.ps1
+update-codenote.exe
+
+# ========== Frontend 前端忽略 ==========
+frontend/node_modules/
+frontend/dist/
+frontend/.nuxt/
+frontend/.next/
+frontend/.vite/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# ========== Java / Maven 后端忽略 ==========
+backend/target/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+backend/*.log
+
+# ========== Docker 相关 ==========
+*.log
+build.log
+
+# ========== Windows系统文件 ==========
+Thumbs.db
+Desktop.ini
+
+# ========== IDE编辑器 ==========
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ========== 环境配置 ==========
+.env
+.env.local
+.env.*.local
