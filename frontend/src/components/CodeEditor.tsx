@@ -48,8 +48,6 @@ import {
   Image as ImageIcon,
   Maximize2,
   Minimize2,
-  Upload,
-  Settings,
   Crosshair,
 } from "lucide-react";
 import type { Annotation } from "@/types";
@@ -57,8 +55,6 @@ import {
   downloadMarkdown,
   downloadHTML,
 } from "@/lib/export";
-import UploadModal from "@/components/UploadModal";
-import LanguageSettingsModal from "@/components/LanguageSettingsModal";
 import EditorTabs from "@/components/EditorTabs";
 
 // 语言映射
@@ -235,7 +231,7 @@ const annotationField = StateField.define<DecorationSet>({
 });
 
 // 分类描述编辑器
-function CategoryDescriptionEditor({ onUploadClick, onSettingsClick }: { onUploadClick: () => void; onSettingsClick: () => void }) {
+function CategoryDescriptionEditor() {
   const { selectedCategoryId, getCurrentCategory, updateCategory, layout, toggleLeftPanel, toggleFocusMode, isLoggedIn, userNickname, userEmail, logout, cleanupOrphanedFiles } = useAppStore();
   const category = getCurrentCategory();
   const [editMode, setEditMode] = useState<"edit" | "split" | "preview">("split");
@@ -327,23 +323,6 @@ function CategoryDescriptionEditor({ onUploadClick, onSettingsClick }: { onUploa
           <span className="text-xs text-slate-400">分类描述</span>
         </div>
         <div className="flex items-center gap-1">
-          {/* 导入文件 */}
-          <button
-            onClick={onUploadClick}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
-            title="导入文件/文件夹"
-          >
-            <Upload size={16} />
-          </button>
-          {/* 语言类型配置 */}
-          <button
-            onClick={onSettingsClick}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
-            title="语言类型配置"
-          >
-            <Settings size={16} />
-          </button>
-          <div className="w-px h-5 bg-slate-200 mx-1" />
           {/* 专注模式 */}
           <button
             onClick={toggleFocusMode}
@@ -606,8 +585,6 @@ export default function CodeEditor() {
   const [mdEditMode, setMdEditMode] = useState<"edit" | "split" | "preview">("split");
   const [debouncedContent, setDebouncedContent] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [showLangSettings, setShowLangSettings] = useState(false);
   const [cleaningUp, setCleaningUp] = useState(false);
   const annotationsRef = useRef<Annotation[]>([]);
   const activeAnnotRef = useRef<string | null>(null);
@@ -1070,30 +1047,60 @@ export default function CodeEditor() {
   // 添加注释
   const handleAddAnnotation = async () => {
     if (!selectionRange || !selectedSnippetId) return;
+    const view = viewRef.current;
     // 设置标志，防止选区变化重新触发工具栏
     isAddingAnnotationRef.current = true;
     setShowSelectionToolbar(false);
+
+    // 保存当前选区，用于后续恢复
+    const savedFrom = selectionRange.from;
+    const savedTo = selectionRange.to;
+
     const newAnnot = await addAnnotation(
       selectedSnippetId,
-      selectionRange.from,
-      selectionRange.to
+      savedFrom,
+      savedTo
     );
     if (newAnnot) {
       selectAnnotation(newAnnot.id);
     }
-    // 延迟清除标志，让 CodeMirror 的选择事件都处理完
-    setTimeout(() => {
-      isAddingAnnotationRef.current = false;
-    }, 200);
+
+    // 恢复编辑器选区，防止装饰更新导致选区丢失或变化
+    if (view) {
+      view.dispatch({
+        selection: { anchor: savedFrom, head: savedTo },
+      });
+    }
+
+    // 延迟清除标志，让 CodeMirror 的选择事件和装饰更新都处理完
+    // 使用双重 rAF + 延迟确保所有渲染和状态更新都已稳定
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          isAddingAnnotationRef.current = false;
+        }, 300);
+      });
+    });
   };
 
   // 复制代码
   const handleCopy = async () => {
-    if (!snippet) return;
+    if (!snippet || typeof snippet.content !== "string") return;
     try {
       await navigator.clipboard.writeText(snippet.content);
     } catch (e) {
       console.error("Copy failed:", e);
+      // fallback
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = snippet.content;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      } catch (e2) {
+        console.error("Fallback copy also failed:", e2);
+      }
     }
   };
 
@@ -1107,19 +1114,7 @@ export default function CodeEditor() {
   if (!snippet) {
     return (
       <>
-        <CategoryDescriptionEditor
-          onUploadClick={() => setShowUpload(true)}
-          onSettingsClick={() => setShowLangSettings(true)}
-        />
-        <UploadModal
-          isOpen={showUpload}
-          onClose={() => setShowUpload(false)}
-          parentCategoryId={selectedCategoryId}
-        />
-        <LanguageSettingsModal
-          isOpen={showLangSettings}
-          onClose={() => setShowLangSettings(false)}
-        />
+        <CategoryDescriptionEditor />
       </>
     );
   }
@@ -1169,23 +1164,6 @@ export default function CodeEditor() {
         </div>
 
         <div className="flex items-center gap-1">
-          {/* 导入文件 */}
-          <button
-            onClick={() => setShowUpload(true)}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
-            title="导入文件/文件夹"
-          >
-            <Upload size={16} />
-          </button>
-          {/* 语言类型配置 */}
-          <button
-            onClick={() => setShowLangSettings(true)}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
-            title="语言类型配置"
-          >
-            <Settings size={16} />
-          </button>
-          <div className="w-px h-5 bg-slate-200 mx-1" />
           {/* 导出按钮 */}
           <div className="relative">
             <button
@@ -1230,7 +1208,8 @@ export default function CodeEditor() {
           </div>
           <button
             onClick={handleCopy}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+            disabled={!snippet || typeof snippet.content !== "string"}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="复制代码"
           >
             <Copy size={16} />
@@ -1417,15 +1396,6 @@ export default function CodeEditor() {
         </div>
       </div>
     </div>
-      <UploadModal
-        isOpen={showUpload}
-        onClose={() => setShowUpload(false)}
-        parentCategoryId={selectedCategoryId}
-      />
-      <LanguageSettingsModal
-        isOpen={showLangSettings}
-        onClose={() => setShowLangSettings(false)}
-      />
     </>
   );
 }

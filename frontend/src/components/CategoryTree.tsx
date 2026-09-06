@@ -27,6 +27,7 @@ import type { Category, Snippet } from "@/types";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import UploadModal from "@/components/UploadModal";
+import LanguageSettingsModal from "@/components/LanguageSettingsModal";
 
 type ViewMode = "all" | "favorites";
 
@@ -70,6 +71,7 @@ export default function CategoryTree() {
   } | null>(null);
   const [plusDropdownId, setPlusDropdownId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [showLangSettings, setShowLangSettings] = useState(false);
   const [uploadParentId, setUploadParentId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -721,6 +723,13 @@ export default function CategoryTree() {
             <Upload size={15} />
           </button>
           <button
+            onClick={() => setShowLangSettings(true)}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-primary-50 text-slate-500 hover:text-primary-500 transition-colors"
+            title="语言类型配置"
+          >
+            <Settings size={15} />
+          </button>
+          <button
             onClick={() => openSnippetModal(selectedCategoryId)}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-primary-50 text-slate-500 hover:text-primary-500 transition-colors"
             title="新建代码片段"
@@ -1323,6 +1332,11 @@ export default function CategoryTree() {
         isOpen={showUpload}
         onClose={() => setShowUpload(false)}
         parentCategoryId={uploadParentId}
+      />
+
+      <LanguageSettingsModal
+        isOpen={showLangSettings}
+        onClose={() => setShowLangSettings(false)}
       />
 
     </div>
