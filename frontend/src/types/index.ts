@@ -60,6 +60,19 @@ export interface LanguageOption {
   mode: string; // CodeMirror mode
 }
 
+// 语言配置（可自定义）
+export interface LanguageConfig {
+  id: string;
+  name: string;
+  value: string;
+  mode: string;
+  extensions: string;
+  sortOrder: number;
+  isBuiltIn: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // 布局状态
 export interface LayoutState {
   leftPanelWidth: number;

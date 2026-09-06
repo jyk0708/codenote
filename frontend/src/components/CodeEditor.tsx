@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { EditorState, StateField, StateEffect, RangeSet } from "@codemirror/state";
@@ -29,31 +29,36 @@ import {
   makeMarkdownImage,
 } from "@/lib/markdownEditor";
 import {
-Copy,
-ChevronDown,
-Plus,
-Edit3,
-Eye,
-Code,
-FolderOpen,
-Download,
-FileText,
-FileCode,
-PanelLeftClose,
-PanelLeftOpen,
-PanelRightClose,
-PanelRightOpen,
-User,
-LogOut,
-Image as ImageIcon,
-Maximize2,
-Minimize2,
+  Copy,
+  ChevronDown,
+  Plus,
+  Edit3,
+  Eye,
+  Code,
+  FolderOpen,
+  Download,
+  FileText,
+  FileCode,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  User,
+  LogOut,
+  Image as ImageIcon,
+  Maximize2,
+  Minimize2,
+  Upload,
+  Settings,
 } from "lucide-react";
 import type { Annotation } from "@/types";
 import {
   downloadMarkdown,
   downloadHTML,
 } from "@/lib/export";
+import UploadModal from "@/components/UploadModal";
+import LanguageSettingsModal from "@/components/LanguageSettingsModal";
+import EditorTabs from "@/components/EditorTabs";
 
 // 语言映射
 const languageExtensions: Record<string, () => any> = {
@@ -229,7 +234,7 @@ const annotationField = StateField.define<DecorationSet>({
 });
 
 // 分类描述编辑器
-function CategoryDescriptionEditor() {
+function CategoryDescriptionEditor({ onUploadClick, onSettingsClick }: { onUploadClick: () => void; onSettingsClick: () => void }) {
   const { selectedCategoryId, getCurrentCategory, updateCategory, layout, toggleLeftPanel, toggleFocusMode, isLoggedIn, userNickname, userEmail, logout, cleanupOrphanedFiles } = useAppStore();
   const category = getCurrentCategory();
   const [editMode, setEditMode] = useState<"edit" | "split" | "preview">("split");
@@ -304,14 +309,23 @@ function CategoryDescriptionEditor() {
           <span className="text-xs text-slate-400">分类描述</span>
         </div>
         <div className="flex items-center gap-1">
-          {/* 代码库显示/隐藏 */}
+          {/* 导入文件 */}
           <button
-            onClick={toggleLeftPanel}
+            onClick={onUploadClick}
             className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
-            title={layout.leftPanelCollapsed ? "显示代码库 (Ctrl+B)" : "隐藏代码库 (Ctrl+B)"}
+            title="导入文件/文件夹"
           >
-            {layout.leftPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            <Upload size={16} />
           </button>
+          {/* 语言类型配置 */}
+          <button
+            onClick={onSettingsClick}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
+            title="语言类型配置"
+          >
+            <Settings size={16} />
+          </button>
+          <div className="w-px h-5 bg-slate-200 mx-1" />
           {/* 专注模式 */}
           <button
             onClick={toggleFocusMode}
@@ -574,6 +588,8 @@ export default function CodeEditor() {
   const [mdEditMode, setMdEditMode] = useState<"edit" | "split" | "preview">("split");
   const [debouncedContent, setDebouncedContent] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [showLangSettings, setShowLangSettings] = useState(false);
   const [cleaningUp, setCleaningUp] = useState(false);
   const annotationsRef = useRef<Annotation[]>([]);
   const activeAnnotRef = useRef<string | null>(null);
@@ -591,6 +607,7 @@ export default function CodeEditor() {
     getCurrentCategory,
     updateCategory,
     layout,
+    languages,
     toggleLeftPanel,
     toggleRightPanel,
     toggleFocusMode,
@@ -599,7 +616,25 @@ export default function CodeEditor() {
     userEmail,
     logout,
     cleanupOrphanedFiles,
+    pendingScrollLine,
+    clearPendingScrollLine,
   } = useAppStore();
+
+  // 语言选项（优先使用服务端配置）
+  const languageOptions = useMemo(() => {
+    if (languages.length > 0) {
+      return languages
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((l) => ({ value: l.value, label: l.name, mode: l.mode }));
+    }
+    return LANGUAGE_OPTIONS;
+  }, [languages]);
+
+  // 根据语言值获取 CodeMirror 模式
+  const getLanguageMode = useCallback((langValue: string): string => {
+    const lang = languageOptions.find((l) => l.value === langValue);
+    return lang?.mode || "javascript";
+  }, [languageOptions]);
 
   // 直接订阅 annotations 数组（原始引用）
   const allAnnotations = useAppStore((state) => state.annotations);
@@ -634,9 +669,21 @@ export default function CodeEditor() {
   useEffect(() => {
     if (!containerRef.current || !snippet) return;
 
-    const langExt = languageExtensions[snippet.language]
-      ? languageExtensions[snippet.language]()
-      : javascript();
+    // 根据语言配置获取 CodeMirror 语言扩展
+    const getLangExtension = () => {
+      // 先按语言值查找（内置语言精确匹配）
+      if (languageExtensions[snippet.language]) {
+        return languageExtensions[snippet.language]();
+      }
+      // 再按 mode 查找（自定义语言可能使用内置 mode）
+      const mode = getLanguageMode(snippet.language);
+      if (languageExtensions[mode]) {
+        return languageExtensions[mode]();
+      }
+      // 默认使用 javascript
+      return javascript();
+    };
+    const langExt = getLangExtension();
 
     // 点击注释区域的事件处理
     const domEventHandlers = EditorView.domEventHandlers({
@@ -922,6 +969,28 @@ export default function CodeEditor() {
     }
   }, [selectedAnnotationId]);
 
+  // Wiki 链接跳转：滚动到指定行号
+  useEffect(() => {
+    if (pendingScrollLine == null) return;
+    const view = viewRef.current;
+    if (!view) return;
+
+    const line = Math.max(1, pendingScrollLine);
+    const doc = view.state.doc;
+    const targetLine = Math.min(line, doc.lines);
+
+    if (targetLine > 0) {
+      const lineObj = doc.line(targetLine);
+      view.dispatch({
+        selection: { anchor: lineObj.from },
+        scrollIntoView: true,
+      });
+    }
+
+    // 清除待滚动状态
+    clearPendingScrollLine();
+  }, [pendingScrollLine, clearPendingScrollLine]);
+
   // Markdown 预览：debounce 内容变化
   useEffect(() => {
     if (!isMarkdown) return;
@@ -991,11 +1060,30 @@ export default function CodeEditor() {
   };
 
   if (!snippet) {
-    return <CategoryDescriptionEditor />;
+    return (
+      <>
+        <CategoryDescriptionEditor
+          onUploadClick={() => setShowUpload(true)}
+          onSettingsClick={() => setShowLangSettings(true)}
+        />
+        <UploadModal
+          isOpen={showUpload}
+          onClose={() => setShowUpload(false)}
+          parentCategoryId={selectedCategoryId}
+        />
+        <LanguageSettingsModal
+          isOpen={showLangSettings}
+          onClose={() => setShowLangSettings(false)}
+        />
+      </>
+    );
   }
 
   return (
+    <>
     <div className="flex flex-col h-full bg-white relative">
+      {/* Tab 栏 */}
+      <EditorTabs />
       {/* 工具栏 */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50">
         <div className="flex items-center gap-3">
@@ -1012,12 +1100,12 @@ export default function CodeEditor() {
               onClick={() => setShowLangMenu(!showLangMenu)}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary-600 bg-primary-50 rounded hover:bg-primary-100 transition-colors"
             >
-              {getLanguageLabel(snippet.language)}
+              {languageOptions.find((l) => l.value === snippet.language)?.label || snippet.language}
               <ChevronDown size={12} />
             </button>
             {showLangMenu && (
               <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-20 min-w-36 max-h-64 overflow-y-auto">
-                {LANGUAGE_OPTIONS.map((lang) => (
+                {languageOptions.map((lang) => (
                   <button
                     key={lang.value}
                     onClick={() => handleLanguageChange(lang.value)}
@@ -1036,6 +1124,23 @@ export default function CodeEditor() {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* 导入文件 */}
+          <button
+            onClick={() => setShowUpload(true)}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+            title="导入文件/文件夹"
+          >
+            <Upload size={16} />
+          </button>
+          {/* 语言类型配置 */}
+          <button
+            onClick={() => setShowLangSettings(true)}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
+            title="语言类型配置"
+          >
+            <Settings size={16} />
+          </button>
+          <div className="w-px h-5 bg-slate-200 mx-1" />
           {/* 导出按钮 */}
           <div className="relative">
             <button
@@ -1084,22 +1189,6 @@ export default function CodeEditor() {
             title="复制代码"
           >
             <Copy size={16} />
-          </button>
-          {/* 代码库显示/隐藏 */}
-          <button
-            onClick={toggleLeftPanel}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
-            title={layout.leftPanelCollapsed ? "显示代码库 (Ctrl+B)" : "隐藏代码库 (Ctrl+B)"}
-          >
-            {layout.leftPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          </button>
-          {/* 注释显示/隐藏 */}
-          <button
-            onClick={toggleRightPanel}
-            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
-            title={layout.rightPanelCollapsed ? "显示注释栏 (Ctrl+/)" : "隐藏注释栏 (Ctrl+/)"}
-          >
-            {layout.rightPanelCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
           </button>
           {/* 专注模式 */}
           <button
@@ -1275,5 +1364,15 @@ export default function CodeEditor() {
         </div>
       </div>
     </div>
+      <UploadModal
+        isOpen={showUpload}
+        onClose={() => setShowUpload(false)}
+        parentCategoryId={selectedCategoryId}
+      />
+      <LanguageSettingsModal
+        isOpen={showLangSettings}
+        onClose={() => setShowLangSettings(false)}
+      />
+    </>
   );
 }

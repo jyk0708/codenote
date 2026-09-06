@@ -447,3 +447,240 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ============================
+   上传弹窗全局样式
+   ============================ */
+.upload-modal {
+  --upload-primary: #6366f1;
+  --upload-primary-light: #eef2ff;
+  --upload-border: #e2e8f0;
+  --upload-text: #475569;
+  --upload-text-light: #94a3b8;
+}
+
+.upload-dropzone {
+  position: relative;
+  border: 2px dashed var(--upload-border);
+  border-radius: 12px;
+  background: #fafbfc;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.upload-dropzone::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 0%,
+    rgba(99, 102, 241, 0.08),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.upload-dropzone:hover {
+  border-color: var(--upload-primary);
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
+}
+
+.upload-dropzone:hover::before {
+  opacity: 1;
+}
+
+.upload-dropzone.drag-active {
+  border-color: var(--upload-primary);
+  background: var(--upload-primary-light);
+  transform: scale(1.01);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
+}
+
+.upload-dropzone.drag-active::before {
+  opacity: 1;
+}
+
+.upload-dropzone-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+  text-align: center;
+  gap: 12px;
+}
+
+.upload-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--upload-primary);
+  transition: transform 0.3s ease;
+}
+
+.upload-dropzone:hover .upload-icon-wrapper {
+  transform: translateY(-2px) scale(1.05);
+}
+
+.upload-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.upload-hint {
+  font-size: 13px;
+  color: var(--upload-text-light);
+}
+
+.upload-hint strong {
+  color: var(--upload-primary);
+  font-weight: 500;
+}
+
+.upload-mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.upload-mode-tab {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--upload-text);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  background: transparent;
+}
+
+.upload-mode-tab:hover {
+  color: #1e293b;
+}
+
+.upload-mode-tab.active {
+  background: #fff;
+  color: var(--upload-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.upload-file-list {
+  margin-top: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--upload-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.upload-file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+
+.upload-file-item:last-child {
+  border-bottom: none;
+}
+
+.upload-file-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--upload-text-light);
+  flex-shrink: 0;
+}
+
+.upload-file-name {
+  flex: 1;
+  min-width: 0;
+  color: #334155;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-file-size {
+  color: var(--upload-text-light);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.upload-progress-bar {
+  height: 3px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--upload-primary), #8b5cf6);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ============================
+   Wiki 链接样式（类 Obsidian）
+   ============================ */
+.wiki-link {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.wiki-link:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-bottom-color: #6366f1;
+  color: #4f46e5;
+}
+
+.wiki-link.missing {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.08);
+  border-bottom-color: rgba(148, 163, 184, 0.3);
+  cursor: default;
+}
+
+.wiki-link.missing:hover {
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.wiki-link-alias {
+  color: inherit;
+}
+
+.wiki-link-target {
+  font-size: 0.85em;
+  color: rgba(99, 102, 241, 0.7);
+  font-family: monospace;
+}

@@ -22,6 +22,8 @@ export default function AppLayout() {
     toggleLeftPanel,
     toggleRightPanel,
     toggleFocusMode,
+    goBack,
+    goForward,
     isLoggedIn,
     checkAuth,
     isLoading,
@@ -100,11 +102,11 @@ export default function AppLayout() {
   // 键盘快捷键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+      if (e.altKey && (e.key === "b" || e.key === "B")) {
         e.preventDefault();
         toggleLeftPanel();
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+      if (e.altKey && e.key === "/") {
         e.preventDefault();
         toggleRightPanel();
       }
@@ -112,11 +114,21 @@ export default function AppLayout() {
         e.preventDefault();
         toggleFocusMode();
       }
+      // Alt + 左箭头：后退
+      if (e.altKey && e.key === "ArrowLeft") {
+        e.preventDefault();
+        goBack();
+      }
+      // Alt + 右箭头：前进
+      if (e.altKey && e.key === "ArrowRight") {
+        e.preventDefault();
+        goForward();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleLeftPanel, toggleRightPanel, toggleFocusMode]);
+  }, [toggleLeftPanel, toggleRightPanel, toggleFocusMode, goBack, goForward]);
 
   const handleAuthSuccess = () => {
     setShowAuth(false);

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useAppStore } from "@/store/useAppStore";
@@ -15,6 +15,13 @@ import {
   Search,
   FolderPlus,
   Star,
+  Upload,
+  Settings,
+  Languages,
+  Copy,
+  FileText,
+  Link2,
+  PanelLeftClose,
 } from "lucide-react";
 import type { Category, Snippet } from "@/types";
 import Modal from "@/components/ui/Modal";
@@ -28,6 +35,7 @@ export default function CategoryTree() {
     snippets,
     selectedCategoryId,
     selectedSnippetId,
+    languages,
     addCategory,
     updateCategory,
     deleteCategory,
@@ -40,6 +48,9 @@ export default function CategoryTree() {
     reorderSnippet,
     moveSnippetToCategory,
     moveCategory,
+    getSnippetPath,
+    toggleLeftPanel,
+    addCategoryTree,
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
@@ -59,6 +70,28 @@ export default function CategoryTree() {
 
   // 搜索
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{
+    snippets: Snippet[];
+    annotations: any[];
+    categories: Category[];
+  } | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // 防抖搜索
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      const { searchAll } = useAppStore.getState();
+      const res = await searchAll(searchQuery);
+      setSearchResults(res);
+      setSearchLoading(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // 新建分类弹窗
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -94,6 +127,16 @@ export default function CategoryTree() {
     id: string;
     name: string;
   } | null>(null);
+
+  // 获取语言选项列表（优先使用服务端配置，回退到内置默认）
+  const languageOptions = useMemo(() => {
+    if (languages.length > 0) {
+      return languages
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((l) => ({ value: l.value, label: l.name, mode: l.mode }));
+    }
+    return LANGUAGE_OPTIONS;
+  }, [languages]);
 
   const tree = useMemo(() => buildCategoryTree(categories, null), [categories]);
 
@@ -150,9 +193,10 @@ export default function CategoryTree() {
   };
 
   // 提交新建分类
-  const handleCreateCategory = () => {
-    if (!newCategoryName.trim()) return;
-    addCategory(newCategoryName.trim(), newCategoryParentId);
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    await addCategoryTree(name, newCategoryParentId);
     if (newCategoryParentId) {
       setExpandedIds((prev) => new Set(prev).add(newCategoryParentId));
     }
@@ -286,6 +330,37 @@ export default function CategoryTree() {
         count += getAllSnippetsCount(c.id);
       });
     return count;
+  };
+
+  // 获取分类的绝对路径
+  const getCategoryPath = (categoryId: string): string => {
+    const parts: string[] = [];
+    let catId: string | null = categoryId;
+    let safety = 0;
+    while (catId && safety < 50) {
+      const cat = categories.find((c) => c.id === catId);
+      if (!cat) break;
+      parts.unshift(cat.name);
+      catId = cat.parentId;
+      safety++;
+    }
+    return "/" + parts.join("/");
+  };
+
+  // 复制到剪贴板
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // fallback
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    setContextMenu(null);
   };
 
   // 渲染片段列表项（名称 + 描述 + 收藏按钮）
@@ -468,7 +543,7 @@ export default function CategoryTree() {
               toggleExpand(category.id);
             }}
           >
-            {children.length > 0 ? (
+            {children.length > 0 || catSnippets.length > 0 ? (
               isExpanded ? (
                 <ChevronDown size={14} />
               ) : (
@@ -479,11 +554,15 @@ export default function CategoryTree() {
             )}
           </button>
 
-          <span className="mr-1.5 flex-shrink-0">
+          <span className="mr-1.5 flex-shrink-0 relative">
             {isExpanded ? (
               <FolderOpen size={16} className="text-amber-500" />
             ) : (
               <Folder size={16} className="text-amber-500" />
+            )}
+            {/* 有描述时的标记 */}
+            {category.description && category.description.trim().length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white" title="有分类描述" />
             )}
           </span>
 
@@ -590,6 +669,14 @@ export default function CategoryTree() {
           >
             <Plus size={16} />
           </button>
+          <div className="w-px h-4 bg-slate-200 mx-0.5" />
+          <button
+            onClick={toggleLeftPanel}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            title="隐藏代码库 (Alt+B)"
+          >
+            <PanelLeftClose size={16} />
+          </button>
         </div>
       </div>
 
@@ -633,7 +720,7 @@ export default function CategoryTree() {
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={viewMode === "favorites" ? "搜索收藏..." : "搜索片段..."}
+            placeholder="搜索（代码、注释、分类）..."
             className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-md outline-none focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 transition-all"
           />
         </div>
@@ -641,7 +728,86 @@ export default function CategoryTree() {
 
       {/* 内容区 */}
       <div className="flex-1 overflow-y-auto p-1.5">
-        {viewMode === "favorites" ? (
+        {/* 全文搜索结果 */}
+        {searchResults && (
+          <div className="space-y-3">
+            {searchLoading && (
+              <div className="px-3 py-2 text-xs text-slate-400">搜索中...</div>
+            )}
+            {/* 代码片段结果 */}
+            {searchResults.snippets.length > 0 && (
+              <div>
+                <div className="px-2 py-1 text-xs font-medium text-slate-500 bg-slate-50 rounded mb-1">
+                  代码片段 ({searchResults.snippets.length})
+                </div>
+                {searchResults.snippets.slice(0, 20).map((snippet) => (
+                  <div key={snippet.id}>{renderSnippetItem(snippet, 0)}</div>
+                ))}
+              </div>
+            )}
+            {/* 注释结果 */}
+            {searchResults.annotations.length > 0 && (
+              <div>
+                <div className="px-2 py-1 text-xs font-medium text-slate-500 bg-slate-50 rounded mb-1">
+                  注释 ({searchResults.annotations.length})
+                </div>
+                {searchResults.annotations.slice(0, 20).map((annot: any) => {
+                  const snippet = snippets.find((s) => s.id === annot.snippetId);
+                  if (!snippet) return null;
+                  return (
+                    <div
+                      key={annot.id}
+                      onClick={() => {
+                        if (snippet.categoryId) selectCategory(snippet.categoryId);
+                        selectSnippet(snippet.id);
+                        setSearchQuery("");
+                      }}
+                      className="px-2 py-1.5 rounded cursor-pointer hover:bg-slate-100 text-xs flex items-start gap-2"
+                    >
+                      <FileCode size={14} className="text-primary-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-slate-700 truncate">{snippet.title}</div>
+                        <div className="text-slate-500 truncate">{annot.title}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* 分类结果 */}
+            {searchResults.categories.length > 0 && (
+              <div>
+                <div className="px-2 py-1 text-xs font-medium text-slate-500 bg-slate-50 rounded mb-1">
+                  分类 ({searchResults.categories.length})
+                </div>
+                {searchResults.categories.slice(0, 10).map((cat) => (
+                  <div
+                    key={cat.id}
+                    onClick={() => {
+                      selectCategory(cat.id);
+                      setSearchQuery("");
+                    }}
+                    className="px-2 py-1.5 rounded cursor-pointer hover:bg-slate-100 text-xs flex items-center gap-2"
+                  >
+                    <Folder size={14} className="text-amber-500 flex-shrink-0" />
+                    <span className="text-slate-700 truncate">{cat.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!searchLoading &&
+              searchResults.snippets.length === 0 &&
+              searchResults.annotations.length === 0 &&
+              searchResults.categories.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <Search size={28} className="mb-2 opacity-30" />
+                  <p className="text-xs">未找到相关结果</p>
+                </div>
+              )}
+          </div>
+        )}
+
+        {!searchResults && viewMode === "favorites" ? (
           // 收藏视图
           <div>
             {favoriteSnippets.length > 0 ? (
@@ -654,7 +820,7 @@ export default function CategoryTree() {
               </div>
             )}
           </div>
-        ) : (
+        ) : !searchResults ? (
           // 全部视图：分类树
           <>
             {tree.map((cat) => renderCategory(cat))}
@@ -678,7 +844,7 @@ export default function CategoryTree() {
               </div>
             )}
           </>
-        )}
+        ) : null}
       </div>
 
       {/* 右键菜单 */}
@@ -703,6 +869,29 @@ export default function CategoryTree() {
               >
                 <FileCode size={14} />
                 新建代码片段
+              </button>
+              <div className="h-px bg-slate-100 my-1" />
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                onClick={() => {
+                  const cat = categories.find((c) => c.id === contextMenu.id);
+                  if (cat) {
+                    copyToClipboard(cat.name);
+                  }
+                }}
+              >
+                <Copy size={14} />
+                复制分类名
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                onClick={() => {
+                  const path = getCategoryPath(contextMenu.id);
+                  copyToClipboard(path);
+                }}
+              >
+                <Link2 size={14} />
+                复制绝对路径
               </button>
               <div className="h-px bg-slate-100 my-1" />
               <button
@@ -742,6 +931,27 @@ export default function CategoryTree() {
                 {snippets.find((s) => s.id === contextMenu.id)?.favorite
                   ? "取消收藏"
                   : "添加收藏"}
+              </button>
+              <div className="h-px bg-slate-100 my-1" />
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                onClick={() => {
+                  const s = snippets.find((sn) => sn.id === contextMenu.id);
+                  if (s) copyToClipboard(s.title);
+                }}
+              >
+                <Copy size={14} />
+                复制文件名
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                onClick={() => {
+                  const path = getSnippetPath(contextMenu.id);
+                  copyToClipboard(path);
+                }}
+              >
+                <FileText size={14} />
+                复制文件绝对路径
               </button>
               <div className="h-px bg-slate-100 my-1" />
               <button
@@ -805,9 +1015,12 @@ export default function CategoryTree() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCreateCategory();
               }}
-              placeholder="请输入分类名称"
+              placeholder="输入分类名称，用 / 创建多级分类"
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
             />
+            <p className="text-xs text-slate-400 mt-1.5">
+              支持多级分类，例如：pages/Dapp/Home 将创建 pages → Dapp → Home 三级分类
+            </p>
           </div>
           {newCategoryParentId && (
             <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-md">
@@ -873,7 +1086,7 @@ export default function CategoryTree() {
               语言类型
             </label>
             <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1">
-              {LANGUAGE_OPTIONS.map((lang) => (
+              {languageOptions.map((lang) => (
                 <button
                   key={lang.value}
                   onClick={() => setNewSnippetLanguage(lang.value)}
@@ -965,7 +1178,7 @@ export default function CategoryTree() {
               语言类型
             </label>
             <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1">
-              {LANGUAGE_OPTIONS.map((lang) => (
+              {languageOptions.map((lang) => (
                 <button
                   key={lang.value}
                   onClick={() => setEditSnippetLanguage(lang.value)}
@@ -1029,6 +1242,7 @@ export default function CategoryTree() {
         }}
         onCancel={() => setDeleteTarget(null)}
       />
+
     </div>
   );
 }

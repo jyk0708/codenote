@@ -171,6 +171,78 @@ export const fileApi = {
   },
 };
 
+// --- Search ---
+export const searchApi = {
+  search: (query: string, type?: string) =>
+    request<{
+      snippets: any[];
+      annotations: any[];
+      categories: any[];
+    }>(`/search?q=${encodeURIComponent(query)}${type ? `&type=${type}` : ""}`),
+};
+
+// --- Language Config ---
+export const languageApi = {
+  getAll: () => request<any[]>("/languages"),
+  create: (data: { name: string; value: string; mode: string; extensions: string }) =>
+    request<any>("/languages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: { name?: string; value?: string; mode?: string; extensions?: string }) =>
+    request<any>(`/languages/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    request<void>(`/languages/${id}`, { method: "DELETE" }),
+};
+
+// --- Import ---
+export const importApi = {
+  importFolder: async (files: File[], paths: string[], parentCategoryId: string | null): Promise<{ importedSnippets: number; createdCategories: number; skippedFiles: number }> => {
+    const token = localStorage.getItem("token");
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+    paths.forEach((path) => {
+      formData.append("paths", path);
+    });
+    if (parentCategoryId) {
+      formData.append("parentCategoryId", parentCategoryId);
+    }
+
+    const response = await fetch(`${API_BASE}/import/folder`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    }).catch((err) => {
+      throw new Error(`网络错误：无法连接到服务器 (${err.message})`);
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type") || "";
+      let errorMessage = `HTTP ${response.status}`;
+      if (contentType.includes("application/json")) {
+        try {
+          const error = await response.json();
+          errorMessage = error.message || error.error || errorMessage;
+        } catch {
+          const text = await response.text().catch(() => "");
+          if (text) errorMessage = text.substring(0, 200);
+        }
+      } else {
+        const text = await response.text().catch(() => "");
+        if (text) errorMessage = text.substring(0, 200);
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+};
+
 // --- Health Check (心跳) ---
 export const healthApi = {
   ping: async (): Promise<boolean> => {

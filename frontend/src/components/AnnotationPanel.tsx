@@ -20,6 +20,7 @@ import {
   ChevronUp,
   Maximize2,
   Image as ImageIcon,
+  PanelRightClose,
 } from "lucide-react";
 import type { Annotation, AnnotationColor } from "@/types";
 import Modal from "@/components/ui/Modal";
@@ -45,6 +46,8 @@ export default function AnnotationPanel() {
     updateAnnotation,
     deleteAnnotation,
     getCurrentSnippet,
+    navigateToSnippet,
+    toggleRightPanel,
   } = useAppStore();
 
   // 直接订阅 annotations 数组
@@ -187,7 +190,39 @@ export default function AnnotationPanel() {
     [allAnnotations, updateAnnotation]
   );
 
-  // 渲染 Markdown（带图片尺寸语法 + mermaid 支持）
+  // 处理 Wiki 链接点击
+  const handleWikiLinkClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const link = target.closest(".wiki-link") as HTMLElement | null;
+    if (!link) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const wikiTarget = link.dataset.wikiTarget;
+    const wikiAnchor = link.dataset.wikiAnchor;
+    const wikiAnchorType = link.dataset.wikiAnchorType;
+
+    if (!wikiTarget) return;
+
+    const targetTitle = decodeURIComponent(wikiTarget);
+    let lineNumber: number | undefined;
+
+    if (wikiAnchor && wikiAnchorType === "line") {
+      const n = parseInt(decodeURIComponent(wikiAnchor), 10);
+      if (!isNaN(n)) lineNumber = n;
+    }
+    // 注：heading 类型暂通过行号匹配，后续可支持按标题文本查找
+
+    const success = navigateToSnippet(targetTitle, lineNumber);
+    if (!success) {
+      // 链接不存在时的视觉反馈
+      link.classList.add("missing");
+      setTimeout(() => link.classList.remove("missing"), 1500);
+    }
+  }, [navigateToSnippet]);
+
+  // 渲染 Markdown（带图片尺寸语法 + mermaid 支持 + Wiki 链接）
   const MarkdownPreview = ({ markdown, annotId }: { markdown: string; annotId: string }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const html = useMemo(() => renderMarkdown(markdown), [markdown]);
@@ -203,6 +238,7 @@ export default function AnnotationPanel() {
         ref={containerRef}
         className="markdown-body text-sm select-text"
         style={{ userSelect: "text" }}
+        onClick={handleWikiLinkClick}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
@@ -366,6 +402,13 @@ export default function AnnotationPanel() {
             {annotations.length}
           </span>
         </div>
+        <button
+          onClick={toggleRightPanel}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+          title="隐藏注释栏 (Alt+/)"
+        >
+          <PanelRightClose size={16} />
+        </button>
       </div>
 
       {/* 注释列表 */}

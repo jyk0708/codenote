@@ -98,16 +98,72 @@ const KATEX_MACROS = {
 };
 
 /**
- * 渲染 LaTeX 数学公式
- * 支持 $...$ 行内公式 和 $$...$$ 块级公式
+ * 渲染 LaTeX 数学公式 + Wiki 链接 + Markdown
+ * 统一的占位符机制，避免多次解析
  */
-function renderMath(markdown: string): string {
+function renderMarkdownCore(markdown: string): string {
   const placeholders: string[] = [];
-  // 使用不会被 Markdown 解析的占位符（HTML 注释形式）
-  const makeKey = (id: number) => `<!--MATH${id}-->`;
+  const makeKey = (id: number) => `<!--PH${id}-->`;
 
-  // 先处理块级公式 $$...$$（匹配多行，非贪婪）
-  let result = markdown.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
+  let result = markdown;
+
+  // ============== 第一步：Wiki 链接 ==============
+  result = result.replace(
+    /\[\[([^\]\n]+?)\]\]/g,
+    (match, content: string) => {
+      const trimmed = content.trim();
+      if (!trimmed) return match;
+
+      // 分离别名： target|alias
+      let alias: string | null = null;
+      const pipeIdx = trimmed.indexOf("|");
+      let target = trimmed;
+      if (pipeIdx > 0) {
+        target = trimmed.substring(0, pipeIdx).trim();
+        alias = trimmed.substring(pipeIdx + 1).trim();
+      }
+
+      // 解析目标：文件#标题 或 文件^行号
+      let fileName = target;
+      let anchor = "";
+      let anchorType: "heading" | "line" | null = null;
+
+      const hashIdx = target.indexOf("#");
+      const caretIdx = target.indexOf("^");
+
+      if (hashIdx > 0) {
+        fileName = target.substring(0, hashIdx).trim();
+        anchor = target.substring(hashIdx + 1).trim();
+        anchorType = "heading";
+      } else if (caretIdx > 0) {
+        fileName = target.substring(0, caretIdx).trim();
+        anchor = target.substring(caretIdx + 1).trim();
+        anchorType = "line";
+      }
+
+      const displayText = alias || fileName;
+      const dataTarget = encodeURIComponent(fileName);
+      const dataAnchor = anchor ? encodeURIComponent(anchor) : "";
+      const dataAnchorType = anchorType || "";
+
+      const html = `<a class="wiki-link" href="javascript:void(0)" 
+        data-wiki-target="${dataTarget}"
+        data-wiki-anchor="${dataAnchor}"
+        data-wiki-anchor-type="${dataAnchorType}"
+      ><span class="wiki-link-alias">${escapeHtml(displayText)}</span>${
+        anchor
+          ? `<span class="wiki-link-target">${anchorType === "line" ? "^" : "#"}${escapeHtml(anchor)}</span>`
+          : ""
+      }</a>`;
+
+      const id = placeholders.length;
+      placeholders.push(html);
+      return makeKey(id);
+    }
+  );
+
+  // ============== 第二步：块级公式 $$...$$ ==============
+  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
     const trimmed = math.trim();
     if (!trimmed) return match;
     try {
@@ -120,15 +176,13 @@ function renderMath(markdown: string): string {
       });
       const id = placeholders.length;
       placeholders.push(`<div class="math-block">${html}</div>`);
-      // 块级公式前后加空行，确保 Markdown 独立成段
       return `\n\n${makeKey(id)}\n\n`;
     } catch {
       return match;
     }
   });
 
-  // 再处理行内公式 $...$
-  // 规则：$ 后不能是空格/换行，$ 前不能是反斜杠，中间不能有换行
+  // ============== 第三步：行内公式 $...$ ==============
   result = result.replace(/(?<!\\)\$([^\$\s][^\$\n]*?[^\$\s])\$/g, (match, math) => {
     if (!math.trim()) return match;
     try {
@@ -147,7 +201,7 @@ function renderMath(markdown: string): string {
     }
   });
 
-  // 渲染 Markdown
+  // ============== 第四步：渲染 Markdown ==============
   let html = "";
   try {
     html = marked.parse(result) as string;
@@ -155,15 +209,14 @@ function renderMath(markdown: string): string {
     html = `<p>${result}</p>`;
   }
 
-  // 替换回数学公式占位符（HTML 注释不会被 Markdown 修改）
-  placeholders.forEach((mathHtml, id) => {
+  // ============== 第五步：还原所有占位符 ==============
+  placeholders.forEach((phHtml, id) => {
     const key = makeKey(id);
-    // marked 可能会给块级占位符套 <p> 标签
     const pWrapped = `<p>${key}</p>`;
     if (html.includes(pWrapped)) {
-      html = html.split(pWrapped).join(mathHtml);
+      html = html.split(pWrapped).join(phHtml);
     } else {
-      html = html.split(key).join(mathHtml);
+      html = html.split(key).join(phHtml);
     }
   });
 
@@ -196,10 +249,11 @@ export function renderMermaidInContainer(container: HTMLElement) {
 
 /**
  * 将 Markdown 渲染为 HTML
+ * 支持数学公式、Mermaid、Wiki 链接等扩展语法
  */
 export function renderMarkdown(markdown: string): string {
   try {
-    return renderMath(markdown);
+    return renderMarkdownCore(markdown);
   } catch (e) {
     console.error("Markdown render error:", e);
     return `<p>${markdown}</p>`;
