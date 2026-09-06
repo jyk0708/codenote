@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { EditorState, StateField, StateEffect, RangeSet } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLine, Decoration, DecorationSet } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput, foldGutter, foldKeymap } from "@codemirror/language";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
@@ -50,6 +50,7 @@ import {
   Minimize2,
   Upload,
   Settings,
+  Crosshair,
 } from "lucide-react";
 import type { Annotation } from "@/types";
 import {
@@ -635,6 +636,7 @@ export default function CodeEditor() {
     cleanupOrphanedFiles,
     pendingScrollLine,
     clearPendingScrollLine,
+    revealSnippet,
   } = useAppStore();
 
   // 语言选项（优先使用服务端配置）
@@ -887,6 +889,7 @@ export default function CodeEditor() {
         changeListener,
         keymap.of([
           ...defaultKeymap,
+          indentWithTab,
           ...historyKeymap,
           ...searchKeymap,
           ...foldKeymap,
@@ -1231,6 +1234,14 @@ export default function CodeEditor() {
             title="复制代码"
           >
             <Copy size={16} />
+          </button>
+          {/* 定位到文件 */}
+          <button
+            onClick={() => selectedSnippetId && revealSnippet(selectedSnippetId)}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+            title="定位到文件 (Alt+L)"
+          >
+            <Crosshair size={16} />
           </button>
           {/* 专注模式 */}
           <button

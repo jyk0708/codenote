@@ -52,6 +52,8 @@ export default function CategoryTree() {
     getSnippetPath,
     toggleLeftPanel,
     addCategoryTree,
+    revealSnippetId,
+    layout,
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
@@ -70,6 +72,7 @@ export default function CategoryTree() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadParentId, setUploadParentId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // 搜索
   const [searchQuery, setSearchQuery] = useState("");
@@ -95,6 +98,54 @@ export default function CategoryTree() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // 定位到 snippet：展开父分类、滚动、高亮
+  useEffect(() => {
+    if (!revealSnippetId) return;
+
+    const snippet = snippets.find((s) => s.id === revealSnippetId);
+    if (!snippet) return;
+
+    // 获取所有父分类 ID
+    const parentIds: string[] = [];
+    let catId = snippet.categoryId;
+    let safety = 0;
+    while (catId && safety < 50) {
+      parentIds.unshift(catId);
+      const cat = categories.find((c) => c.id === catId);
+      if (!cat) break;
+      catId = cat.parentId;
+      safety++;
+    }
+
+    // 如果左侧面板是折叠的，展开它
+    if (layout.leftPanelCollapsed) {
+      toggleLeftPanel();
+    }
+
+    // 展开所有父分类
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      parentIds.forEach((id) => next.add(id));
+      return next;
+    });
+
+    // 滚动到元素并添加高亮
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const el = listRef.current?.querySelector(
+          `[data-snippet-id="${revealSnippetId}"]`
+        );
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("snippet-highlight");
+          setTimeout(() => {
+            el.classList.remove("snippet-highlight");
+          }, 1500);
+        }
+      }, 100);
+    });
+  }, [revealSnippetId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // 新建分类弹窗
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -376,6 +427,7 @@ export default function CategoryTree() {
     return (
       <div
         key={snippet.id}
+        data-snippet-id={snippet.id}
         draggable
         onDragStart={(e) => {
           setDraggingSnippetId(snippet.id);
@@ -740,7 +792,7 @@ export default function CategoryTree() {
       </div>
 
       {/* 内容区 */}
-      <div className="flex-1 overflow-y-auto p-1.5">
+      <div ref={listRef} className="flex-1 overflow-y-auto p-1.5">
         {/* 全文搜索结果 */}
         {searchResults && (
           <div className="space-y-3">

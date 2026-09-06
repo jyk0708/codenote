@@ -685,3 +685,17 @@ body {
   color: rgba(99, 102, 241, 0.7);
   font-family: monospace;
 }
+
+/* 定位高亮闪烁效果 */
+.snippet-highlight {
+  animation: snippet-flash 1.5s ease-out;
+}
+
+@keyframes snippet-flash {
+  0% {
+    background-color: rgba(99, 102, 241, 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}

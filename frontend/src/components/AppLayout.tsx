@@ -27,6 +27,7 @@ export default function AppLayout() {
     isLoggedIn,
     checkAuth,
     isLoading,
+    revealSnippet,
   } = useAppStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -124,11 +125,18 @@ export default function AppLayout() {
         e.preventDefault();
         goForward();
       }
+      // Alt + L：定位到文件（在左侧树中显示当前片段）
+      if (e.altKey && (e.key === "l" || e.key === "L")) {
+        e.preventDefault();
+        if (selectedSnippetId) {
+          revealSnippet(selectedSnippetId);
+        }
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleLeftPanel, toggleRightPanel, toggleFocusMode, goBack, goForward]);
+  }, [toggleLeftPanel, toggleRightPanel, toggleFocusMode, goBack, goForward, revealSnippet, selectedSnippetId]);
 
   const handleAuthSuccess = () => {
     setShowAuth(false);

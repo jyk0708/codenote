@@ -183,7 +183,8 @@ function renderMarkdownCore(markdown: string): string {
   });
 
   // ============== 第三步：行内公式 $...$ ==============
-  result = result.replace(/(?<!\\)\$([^\$\s][^\$\n]*?[^\$\s])\$/g, (match, math) => {
+  // 注意：使用 (?![{]) 排除 JavaScript 模板字符串 ${...} 模式，避免误匹配
+  result = result.replace(/(?<!\\)\$(?![{])([^\$\s][^\$\n]*?[^\$\s])\$/g, (match, math) => {
     if (!math.trim()) return match;
     try {
       const html = katex.renderToString(math.trim(), {

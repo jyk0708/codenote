@@ -68,8 +68,8 @@ if([string]::IsNullOrWhiteSpace($commitMsg)){
     Write-Warning "commit注释为空，跳过git提交"
 }
 else{
-    git add .
-    git -c core.safecrlf=false commit -m "$commitMsg"
+    git -c core.safecrlf=false -c core.autocrlf=false add . 2>&1
+    git -c core.safecrlf=false -c core.autocrlf=false commit -m "$commitMsg" 2>&1
     git push
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "git操作返回非0，请检查git输出"
