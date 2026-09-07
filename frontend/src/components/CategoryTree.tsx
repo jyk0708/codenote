@@ -107,6 +107,18 @@ export default function CategoryTree() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // 分类加载后默认展开所有有子分类的父分类
+  useEffect(() => {
+    if (categories.length === 0) return;
+    setExpandedIds((prev) => {
+      if (prev.size > 0) return prev; // 已有展开状态则不覆盖
+      const parentIds = new Set(
+        categories.filter((c) => c.parentId).map((c) => c.parentId!)
+      );
+      return parentIds;
+    });
+  }, [categories]);
+
   // 定位到 snippet：展开父分类、滚动、高亮
   useEffect(() => {
     if (!revealSnippetId) return;
@@ -227,8 +239,14 @@ export default function CategoryTree() {
   // 获取语言选项列表（优先使用服务端配置，回退到内置默认）
   const languageOptions = useMemo(() => {
     if (languages.length > 0) {
+      const seen = new Set<string>();
       return languages
         .sort((a, b) => a.sortOrder - b.sortOrder)
+        .filter((l) => {
+          if (seen.has(l.value)) return false;
+          seen.add(l.value);
+          return true;
+        })
         .map((l) => ({ value: l.value, label: l.name, mode: l.mode }));
     }
     return LANGUAGE_OPTIONS;
@@ -463,13 +481,7 @@ export default function CategoryTree() {
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    const menuWidth = 180;
-    const menuHeight = type === "category" ? 200 : 180;
-    let x = e.clientX;
-    let y = e.clientY;
-    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8;
-    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8;
-    setContextMenu({ type, id, x, y });
+    setContextMenu({ type, id, x: e.clientX, y: e.clientY });
   };
 
   // 点击空白关闭右键菜单和下拉菜单

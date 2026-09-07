@@ -620,8 +620,14 @@ export default function CodeEditor() {
   // 语言选项（优先使用服务端配置）
   const languageOptions = useMemo(() => {
     if (languages.length > 0) {
+      const seen = new Set<string>();
       return languages
         .sort((a, b) => a.sortOrder - b.sortOrder)
+        .filter((l) => {
+          if (seen.has(l.value)) return false;
+          seen.add(l.value);
+          return true;
+        })
         .map((l) => ({ value: l.value, label: l.name, mode: l.mode }));
     }
     return LANGUAGE_OPTIONS;
