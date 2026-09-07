@@ -215,9 +215,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         languages: langs,
         isLoading: false,
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load data:", e);
-      set({ isLoading: false });
+      // 401/403 说明 token 失效，自动登出
+      if (e?.status === 401 || e?.status === 403) {
+        const { logout } = get();
+        logout();
+      } else {
+        set({ isLoading: false });
+      }
     }
   },
 
