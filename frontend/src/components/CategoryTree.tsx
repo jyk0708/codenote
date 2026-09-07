@@ -79,6 +79,8 @@ export default function CategoryTree() {
   const [uploadParentId, setUploadParentId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
   // 搜索
   const [searchQuery, setSearchQuery] = useState("");
@@ -153,10 +155,36 @@ export default function CategoryTree() {
     });
   }, [revealSnippetId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 右键菜单位置调整（防止底部溢出）
+  useEffect(() => {
+    if (!contextMenu) return;
+    // 先设置初始位置
+    setMenuStyle({ top: contextMenu.y, left: contextMenu.x });
+    // 下一帧测量并调整
+    requestAnimationFrame(() => {
+      const el = contextMenuRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      let { top, left } = { top: contextMenu.y, left: contextMenu.x };
+      // 底部溢出则向上弹出
+      if (top + rect.height > viewportHeight - 8) {
+        top = Math.max(8, top - rect.height);
+      }
+      // 右侧溢出则向左调整
+      if (left + rect.width > viewportWidth - 8) {
+        left = Math.max(8, viewportWidth - rect.width - 8);
+      }
+      setMenuStyle({ top, left });
+    });
+  }, [contextMenu]);
+
   // 新建分类弹窗
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryParentId, setNewCategoryParentId] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryBrief, setNewCategoryBrief] = useState("");
   const [newCategorySortOrder, setNewCategorySortOrder] = useState<number | "">("");
 
   // 编辑分类弹窗
@@ -302,6 +330,7 @@ export default function CategoryTree() {
   const openCategoryModal = (parentId: string | null) => {
     setNewCategoryParentId(parentId);
     setNewCategoryName("");
+    setNewCategoryBrief("");
     setNewCategorySortOrder("");
     setShowCategoryModal(true);
     setContextMenu(null);
@@ -312,9 +341,12 @@ export default function CategoryTree() {
     const name = newCategoryName.trim();
     if (!name) return;
     const created = await addCategoryTree(name, newCategoryParentId);
-    // 如果指定了排序序号，更新它
-    if (created && newCategorySortOrder !== "") {
-      await updateCategory(created.id, { sortOrder: newCategorySortOrder });
+    // 如果指定了排序序号或简要描述，更新它
+    if (created && (newCategorySortOrder !== "" || newCategoryBrief.trim())) {
+      const updates: any = {};
+      if (newCategorySortOrder !== "") updates.sortOrder = newCategorySortOrder;
+      if (newCategoryBrief.trim()) updates.brief = newCategoryBrief.trim();
+      await updateCategory(created.id, updates);
     }
     if (newCategoryParentId) {
       setExpandedIds((prev) => new Set(prev).add(newCategoryParentId));
@@ -1073,8 +1105,9 @@ export default function CategoryTree() {
       {/* 右键菜单 */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1.5 min-w-40"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          style={{ left: menuStyle.left, top: menuStyle.top }}
           onClick={(e) => e.stopPropagation()}
         >
           {contextMenu.type === "category" && (
@@ -1271,6 +1304,19 @@ export default function CategoryTree() {
             <p className="text-xs text-slate-400 mt-1.5">
               支持多级分类，例如：pages/Dapp/Home 将创建 pages → Dapp → Home 三级分类
             </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              简要描述
+              <span className="text-slate-400 font-normal ml-1">（可选，显示在分类名下方）</span>
+            </label>
+            <textarea
+              value={newCategoryBrief}
+              onChange={(e) => setNewCategoryBrief(e.target.value)}
+              placeholder="简要描述这个分类的用途..."
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all resize-none"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
