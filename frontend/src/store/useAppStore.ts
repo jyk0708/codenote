@@ -187,7 +187,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    set({ isLoggedIn: true, userEmail: email, userNickname: nickname });
+    set({ isLoggedIn: true, userEmail: email, userNickname: nickname, isLoading: true });
 
     try {
       // 并行加载所有数据

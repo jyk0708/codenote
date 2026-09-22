@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useAppStore } from "@/store/useAppStore";
 import CategoryTree from "./CategoryTree";
 import CodeEditor from "./CodeEditor";
@@ -30,9 +31,12 @@ export default function AppLayout() {
     revealSnippet,
   } = useAppStore();
 
+  const pathname = usePathname();
+  const snippetCount = useAppStore((s) => s.snippets.length);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<"left" | "right" | null>(null);
   const [showAuth, setShowAuth] = useState(false);
+  const initialPathProcessed = useRef(false);
 
   // 心跳检测
   const { isOnline, showWarning, dismissWarning, recheck } = useHeartbeat(15000);
@@ -54,6 +58,42 @@ export default function AppLayout() {
     const oneThird = Math.floor(window.innerWidth / 3);
     useAppStore.getState().setRightPanelWidth(oneThird);
   }, []);
+
+  // URL 路由：根据路径自动打开文件
+  useEffect(() => {
+    if (initialPathProcessed.current) return;
+    if (isLoading) return;
+    if (!isLoggedIn) return;
+
+    const { snippets, navigateToSnippet, revealSnippet } = useAppStore.getState();
+    if (snippets.length === 0) return;
+
+    initialPathProcessed.current = true;
+
+    if (pathname && pathname !== "/") {
+      // 解析 URL hash 中的行号（如 #55 或 #L55）
+      let lineNumber: number | undefined;
+      const hash = window.location.hash;
+      if (hash) {
+        const match = hash.match(/L?(\d+)/);
+        if (match) lineNumber = parseInt(match[1]);
+      }
+
+      const success = navigateToSnippet(pathname, lineNumber);
+      if (success) {
+        // 展开左侧面板以显示文件
+        const { layout: currentLayout } = useAppStore.getState();
+        if (currentLayout.leftPanelCollapsed) {
+          useAppStore.getState().toggleLeftPanel();
+        }
+        // 定位到文件
+        const { selectedSnippetId } = useAppStore.getState();
+        if (selectedSnippetId) {
+          revealSnippet(selectedSnippetId);
+        }
+      }
+    }
+  }, [isLoading, isLoggedIn, snippetCount, pathname]);
 
   // 左侧拖拽
   const handleLeftDragStart = useCallback((e: React.MouseEvent) => {
