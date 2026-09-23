@@ -329,9 +329,10 @@ body {
 
 /* Mermaid 图表样式 */
 .markdown-body .mermaid-container {
+  position: relative;
   margin: 1em 0;
   text-align: center;
-  overflow-x: auto;
+  overflow: hidden;
   padding: 1em;
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -342,6 +343,169 @@ body {
   max-width: 100% !important;
   width: 100% !important;
   height: auto !important;
+}
+
+/* 工具栏（右上角） */
+.mermaid-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.mermaid-container:hover .mermaid-toolbar {
+  opacity: 1;
+}
+
+.mermaid-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #475569;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mermaid-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* 底部缩放控制条 */
+.mermaid-zoom-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.mermaid-container:hover .mermaid-zoom-bar {
+  opacity: 1;
+}
+
+.mermaid-zoom-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #475569;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mermaid-zoom-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.mermaid-zoom-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+  min-width: 40px;
+  text-align: center;
+  user-select: none;
+}
+
+.mermaid-zoom-divider {
+  width: 1px;
+  height: 20px;
+  background: #e2e8f0;
+  margin: 0 2px;
+}
+
+/* 全屏遮罩 */
+.mermaid-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(15, 23, 42, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.mermaid-fullscreen-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.mermaid-fullscreen-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.mermaid-fullscreen-content {
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mermaid-fullscreen-content svg {
+  max-width: none !important;
+  width: auto !important;
+  height: auto !important;
+  max-height: 85vh;
+}
+
+/* 全屏中的缩放控制条 */
+.mermaid-zoom-bar-fs {
+  opacity: 1 !important;
+  position: fixed !important;
+  bottom: 24px !important;
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.mermaid-zoom-bar-fs .mermaid-zoom-btn {
+  color: #cbd5e1;
+}
+.mermaid-zoom-bar-fs .mermaid-zoom-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.mermaid-zoom-bar-fs .mermaid-zoom-label {
+  color: #cbd5e1;
+}
+.mermaid-zoom-bar-fs .mermaid-zoom-divider {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* 确保 Markdown 内容可选 */
