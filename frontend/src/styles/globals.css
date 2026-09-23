@@ -480,9 +480,6 @@ body {
   justify-content: center;
 }
 .mermaid-fullscreen-content svg {
-  max-width: none !important;
-  width: auto !important;
-  height: auto !important;
   max-height: 85vh;
 }
 

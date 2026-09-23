@@ -476,9 +476,13 @@ function initMermaidViewer(container: HTMLElement) {
     content.className = "mermaid-fullscreen-content";
 
     const svgClone = svg.cloneNode(true) as SVGElement;
+    // 获取 SVG 原始尺寸
+    const svgRect = svg.getBoundingClientRect();
+    const svgWidth = svgRect.width || svg.clientWidth || 800;
+    const svgHeight = svgRect.height || svg.clientHeight || 600;
     svgClone.style.maxWidth = "none";
-    svgClone.style.width = "";
-    svgClone.style.height = "";
+    svgClone.style.width = svgWidth + "px";
+    svgClone.style.height = svgHeight + "px";
     svgClone.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
     svgClone.style.transformOrigin = "center center";
     svgClone.style.transition = "transform 0.15s ease-out";
