@@ -18,7 +18,7 @@ import { rust } from "@codemirror/lang-rust";
 import { markdown } from "@codemirror/lang-markdown";
 import { xml } from "@codemirror/lang-xml";
 import { useAppStore } from "@/store/useAppStore";
-import { getLanguageLabel, LANGUAGE_OPTIONS, offsetToLine, renderMarkdown, renderMermaidInContainer, rerenderMermaidInContainer } from "@/lib/utils";
+import { getLanguageLabel, LANGUAGE_OPTIONS, offsetToLine, renderMarkdown, renderMermaidInContainer, rerenderMermaidInContainer, injectAnnotationHighlights } from "@/lib/utils";
 import {
   handleImagePaste,
   handleImageDrop,
@@ -583,6 +583,11 @@ export default function CodeEditor() {
   const [showSelectionToolbar, setShowSelectionToolbar] = useState(false);
   const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 });
   const [selectionRange, setSelectionRange] = useState<{ from: number; to: number } | null>(null);
+
+  // 预览模式选区工具栏
+  const [showPreviewToolbar, setShowPreviewToolbar] = useState(false);
+  const [previewToolbarPos, setPreviewToolbarPos] = useState({ top: 0, left: 0 });
+  const [previewSelectionRange, setPreviewSelectionRange] = useState<{ from: number; to: number } | null>(null);
   const [mdEditMode, setMdEditMode] = useState<"edit" | "split" | "preview">("split");
   const [debouncedContent, setDebouncedContent] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -1007,8 +1012,9 @@ export default function CodeEditor() {
   // Markdown 预览 HTML
   const previewHtml = useMemo(() => {
     if (!isMarkdown) return "";
-    return renderMarkdown(debouncedContent);
-  }, [debouncedContent, isMarkdown]);
+    const contentWithHighlights = injectAnnotationHighlights(debouncedContent, annotations);
+    return renderMarkdown(contentWithHighlights);
+  }, [debouncedContent, isMarkdown, annotations]);
 
   // Markdown 预览：渲染 Mermaid 图表
   useEffect(() => {
@@ -1041,6 +1047,108 @@ export default function CodeEditor() {
       ro.disconnect();
     };
   }, []);
+
+  // 预览模式选区监听 - 显示添加注释按钮
+  useEffect(() => {
+    if (!isMarkdown) return;
+    if (mdEditMode === "edit") return;
+
+    const previewEl = previewRef.current;
+    if (!previewEl) return;
+
+    const handleMouseUp = (e: MouseEvent) => {
+      // 点击了工具栏则不处理
+      if ((e.target as HTMLElement).closest(".preview-selection-toolbar")) return;
+
+      setTimeout(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) {
+          setShowPreviewToolbar(false);
+          setPreviewSelectionRange(null);
+          return;
+        }
+
+        const selectedText = selection.toString();
+        if (!selectedText.trim()) {
+          setShowPreviewToolbar(false);
+          setPreviewSelectionRange(null);
+          return;
+        }
+
+        // 检查选区是否在预览区域内
+        const range = selection.getRangeAt(0);
+        if (!previewEl.contains(range.commonAncestorContainer)) {
+          setShowPreviewToolbar(false);
+          return;
+        }
+
+        // 在原始 markdown 内容中查找选中文本的偏移量
+        const content = debouncedContent;
+        const startOffset = content.indexOf(selectedText);
+        if (startOffset === -1) {
+          // 如果精确匹配不到，尝试去掉首尾空白
+          const trimmed = selectedText.trim();
+          const trimmedOffset = content.indexOf(trimmed);
+          if (trimmedOffset === -1) {
+            setShowPreviewToolbar(false);
+            setPreviewSelectionRange(null);
+            return;
+          }
+          const endOffset = trimmedOffset + trimmed.length;
+          setPreviewSelectionRange({ from: trimmedOffset, to: endOffset });
+        } else {
+          const endOffset = startOffset + selectedText.length;
+          setPreviewSelectionRange({ from: startOffset, to: endOffset });
+        }
+
+        // 计算工具栏位置
+        const rect = range.getBoundingClientRect();
+        const previewRect = previewEl.getBoundingClientRect();
+        setPreviewToolbarPos({
+          top: rect.top - previewRect.top - 36,
+          left: rect.left - previewRect.left + rect.width / 2,
+        });
+        setShowPreviewToolbar(true);
+      }, 0);
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest(".preview-selection-toolbar")) return;
+      // 延迟检查，让选区先变化
+      setTimeout(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) {
+          setShowPreviewToolbar(false);
+          setPreviewSelectionRange(null);
+        }
+      }, 0);
+    };
+
+    previewEl.addEventListener("mouseup", handleMouseUp);
+    previewEl.addEventListener("click", handleClick);
+    document.addEventListener("mousedown", handleClick);
+
+    // 点击预览中的注释高亮 - 选中对应注释
+    const handleAnnotClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotEl = target.closest("[data-annotation-id]");
+      if (annotEl) {
+        const id = annotEl.getAttribute("data-annotation-id");
+        if (id) {
+          useAppStore.getState().selectAnnotation(id);
+          e.stopPropagation();
+        }
+      }
+    };
+    previewEl.addEventListener("click", handleAnnotClick);
+
+    return () => {
+      previewEl.removeEventListener("mouseup", handleMouseUp);
+      previewEl.removeEventListener("click", handleClick);
+      previewEl.removeEventListener("click", handleAnnotClick);
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [isMarkdown, mdEditMode, debouncedContent]);
 
   // 切换编辑模式时刷新 CodeMirror 布局
   useEffect(() => {
@@ -1088,6 +1196,20 @@ export default function CodeEditor() {
         }, 300);
       });
     });
+  };
+
+  // 预览模式添加注释
+  const handlePreviewAddAnnotation = async () => {
+    if (!previewSelectionRange || !selectedSnippetId) return;
+    setShowPreviewToolbar(false);
+    const newAnnot = await addAnnotation(
+      selectedSnippetId,
+      previewSelectionRange.from,
+      previewSelectionRange.to
+    );
+    if (newAnnot) {
+      selectAnnotation(newAnnot.id);
+    }
   };
 
   // 复制代码
@@ -1367,13 +1489,37 @@ export default function CodeEditor() {
         {isMarkdown && (mdEditMode === "preview" || mdEditMode === "split") && (
           <div
             ref={previewRef}
-            className={`${mdEditMode === "split" ? "w-1/2" : "w-full"} overflow-y-auto bg-slate-50/30`}
+            className={`${mdEditMode === "split" ? "w-1/2" : "w-full"} overflow-y-auto bg-slate-50/30 relative`}
           >
             <div
               className="markdown-body text-sm p-4"
               style={{ userSelect: "text" }}
               dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
+            {/* 预览模式选区浮动工具栏 */}
+            {showPreviewToolbar && previewSelectionRange && (
+              <div
+                className="selection-toolbar preview-selection-toolbar"
+                style={{
+                  top: previewToolbarPos.top,
+                  left: previewToolbarPos.left,
+                  transform: "translateX(-50%)",
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+              >
+                <button onClick={handlePreviewAddAnnotation}>
+                  <Plus size={12} style={{ display: "inline-block", marginRight: 3, verticalAlign: "middle" }} />
+                  添加注释
+                </button>
+              </div>
+            )}
           </div>
         )}
 

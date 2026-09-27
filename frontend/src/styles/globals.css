@@ -143,6 +143,78 @@ body {
   border-color: #f97316;
 }
 
+/* Markdown 预览模式注释高亮 */
+.markdown-body .md-annotation {
+  border-radius: 2px;
+  padding: 1px 0;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.markdown-body .md-annotation-indigo {
+  background: var(--annotation-indigo-bg);
+  border-bottom: 2px solid var(--annotation-indigo-border);
+}
+.markdown-body .md-annotation-indigo:hover,
+.markdown-body .md-annotation-indigo.md-annotation-active {
+  background: var(--annotation-indigo-hover);
+}
+.markdown-body .md-annotation-amber {
+  background: var(--annotation-amber-bg);
+  border-bottom: 2px solid var(--annotation-amber-border);
+}
+.markdown-body .md-annotation-amber:hover,
+.markdown-body .md-annotation-amber.md-annotation-active {
+  background: var(--annotation-amber-hover);
+}
+.markdown-body .md-annotation-emerald {
+  background: var(--annotation-emerald-bg);
+  border-bottom: 2px solid var(--annotation-emerald-border);
+}
+.markdown-body .md-annotation-emerald:hover,
+.markdown-body .md-annotation-emerald.md-annotation-active {
+  background: var(--annotation-emerald-hover);
+}
+.markdown-body .md-annotation-rose {
+  background: var(--annotation-rose-bg);
+  border-bottom: 2px solid var(--annotation-rose-border);
+}
+.markdown-body .md-annotation-rose:hover,
+.markdown-body .md-annotation-rose.md-annotation-active {
+  background: var(--annotation-rose-hover);
+}
+.markdown-body .md-annotation-sky {
+  background: var(--annotation-sky-bg);
+  border-bottom: 2px solid var(--annotation-sky-border);
+}
+.markdown-body .md-annotation-sky:hover,
+.markdown-body .md-annotation-sky.md-annotation-active {
+  background: var(--annotation-sky-hover);
+}
+.markdown-body .md-annotation-fuchsia {
+  background: var(--annotation-fuchsia-bg);
+  border-bottom: 2px solid var(--annotation-fuchsia-border);
+}
+.markdown-body .md-annotation-fuchsia:hover,
+.markdown-body .md-annotation-fuchsia.md-annotation-active {
+  background: var(--annotation-fuchsia-hover);
+}
+.markdown-body .md-annotation-lime {
+  background: var(--annotation-lime-bg);
+  border-bottom: 2px solid var(--annotation-lime-border);
+}
+.markdown-body .md-annotation-lime:hover,
+.markdown-body .md-annotation-lime.md-annotation-active {
+  background: var(--annotation-lime-hover);
+}
+.markdown-body .md-annotation-orange {
+  background: var(--annotation-orange-bg);
+  border-bottom: 2px solid var(--annotation-orange-border);
+}
+.markdown-body .md-annotation-orange:hover,
+.markdown-body .md-annotation-orange.md-annotation-active {
+  background: var(--annotation-orange-hover);
+}
+
 /* 选中代码时的浮动工具栏 */
 .selection-toolbar {
   position: absolute;
@@ -472,15 +544,16 @@ body {
 }
 
 .mermaid-fullscreen-content {
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow: hidden;
+  position: absolute;
+  inset: 0;
+  overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 60px 20px 80px;
 }
 .mermaid-fullscreen-content svg {
-  max-height: 85vh;
+  max-height: none;
 }
 
 /* 全屏中的缩放控制条 */

@@ -3,6 +3,7 @@ import hljs from "highlight.js";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import mermaid from "mermaid";
+import type { Annotation } from "@/types";
 
 // 初始化 mermaid
 mermaid.initialize({
@@ -372,6 +373,36 @@ export function getCategoryDescendants(
   return result;
 }
 
+// ===== 注释高亮注入 =====
+
+/**
+ * 将注释高亮标记注入到 markdown 内容中，用于预览模式显示
+ * 从后往前处理，避免偏移量错位
+ */
+export function injectAnnotationHighlights(content: string, annotations: Annotation[]): string {
+  if (!annotations.length) return content;
+
+  // 按 endOffset 从大到小排序，从后往前插入
+  const sorted = [...annotations].sort((a, b) => b.endOffset - a.endOffset);
+  let result = content;
+
+  for (const annot of sorted) {
+    const { startOffset, endOffset, color, id } = annot;
+    if (startOffset < 0 || endOffset > result.length || startOffset >= endOffset) continue;
+
+    const before = result.slice(0, startOffset);
+    const middle = result.slice(startOffset, endOffset);
+    const after = result.slice(endOffset);
+
+    const openTag = `<span class="md-annotation md-annotation-${color}" data-annotation-id="${id}">`;
+    const closeTag = `</span>`;
+
+    result = before + openTag + middle + closeTag + after;
+  }
+
+  return result;
+}
+
 // ===== Mermaid Viewer 交互控件 =====
 
 function initMermaidViewer(container: HTMLElement) {
@@ -483,19 +514,32 @@ function initMermaidViewer(container: HTMLElement) {
     svgClone.style.maxWidth = "none";
     svgClone.style.width = svgWidth + "px";
     svgClone.style.height = svgHeight + "px";
-    svgClone.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
-    svgClone.style.transformOrigin = "center center";
+    svgClone.style.transformOrigin = "0 0";
     svgClone.style.transition = "transform 0.15s ease-out";
     svgClone.style.cursor = "grab";
+    svgClone.style.flexShrink = "0";
     content.appendChild(svgClone);
     overlay.appendChild(content);
+
+    // 计算合适的初始缩放：让 SVG 宽度撑满视口宽度的 90%
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const fitScale = Math.min(
+      (viewportWidth * 0.9) / svgWidth,
+      (viewportHeight * 0.85) / svgHeight,
+      3 // 最大 3 倍
+    );
+    const initialScale = fitScale > 1 ? fitScale : 1;
+    let fsScale = initialScale;
+    let fsOffsetX = 0;
+    let fsOffsetY = 0;
 
     // 全屏中的缩放控制
     const fsZoomBar = document.createElement("div");
     fsZoomBar.className = "mermaid-zoom-bar mermaid-zoom-bar-fs";
     fsZoomBar.innerHTML = `
       <button class="mermaid-zoom-btn" title="缩小" data-action="zoomout"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
-      <span class="mermaid-zoom-label">${Math.round(scale * 100)}%</span>
+      <span class="mermaid-zoom-label">${Math.round(initialScale * 100)}%</span>
       <button class="mermaid-zoom-btn" title="放大" data-action="zoomin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
       <span class="mermaid-zoom-divider"></span>
       <button class="mermaid-zoom-btn" title="重置" data-action="reset"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
@@ -505,9 +549,6 @@ function initMermaidViewer(container: HTMLElement) {
     document.body.appendChild(overlay);
     document.body.style.overflow = "hidden";
 
-    let fsScale = scale;
-    let fsOffsetX = offsetX;
-    let fsOffsetY = offsetY;
     let fsIsDragging = false;
     let fsStartX = 0;
     let fsStartY = 0;
@@ -526,7 +567,7 @@ function initMermaidViewer(container: HTMLElement) {
       const action = btn.dataset.action;
       if (action === "zoomin") fsScale = Math.min(MAX_SCALE, fsScale + 0.2);
       else if (action === "zoomout") fsScale = Math.max(MIN_SCALE, fsScale - 0.2);
-      else if (action === "reset") { fsScale = 1; fsOffsetX = 0; fsOffsetY = 0; }
+      else if (action === "reset") { fsScale = initialScale; fsOffsetX = 0; fsOffsetY = 0; }
       updateFsTransform();
     });
 
@@ -560,7 +601,7 @@ function initMermaidViewer(container: HTMLElement) {
     });
 
     overlay.addEventListener("dblclick", () => {
-      fsScale = 1;
+      fsScale = initialScale;
       fsOffsetX = 0;
       fsOffsetY = 0;
       updateFsTransform();
@@ -574,6 +615,10 @@ function initMermaidViewer(container: HTMLElement) {
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) closeHandler();
     });
+
+    // 初始化 transform
+    updateFsTransform();
+
     document.addEventListener("keydown", function escHandler(e) {
       if (e.key === "Escape") {
         closeHandler();
