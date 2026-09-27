@@ -1123,8 +1123,8 @@ export default function CodeEditor() {
         const rect = range.getBoundingClientRect();
         const previewRect = previewEl.getBoundingClientRect();
         setPreviewToolbarPos({
-          top: rect.top - previewRect.top - 36,
-          left: rect.left - previewRect.left + rect.width / 2,
+          top: rect.top - previewRect.top + previewEl.scrollTop - 36,
+          left: rect.left - previewRect.left + previewEl.scrollLeft + rect.width / 2,
         });
         setShowPreviewToolbar(true);
 
