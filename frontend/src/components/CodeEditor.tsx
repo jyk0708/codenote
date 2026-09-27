@@ -1101,6 +1101,24 @@ export default function CodeEditor() {
           setPreviewSelectionRange({ from: startOffset, to: endOffset });
         }
 
+        // 保存选中文本信息，用于渲染后恢复选区（用渲染后文本的偏移量，而非 markdown 源码偏移）
+        const savedSelectedText = selectedText;
+        const bodyEl = previewEl.querySelector(".markdown-body");
+        let savedTextOffsetInDom = 0;
+        if (bodyEl && range.startContainer.nodeType === Node.TEXT_NODE) {
+          // 计算选区在渲染后全文本中的偏移量
+          const walker = document.createTreeWalker(bodyEl, NodeFilter.SHOW_TEXT);
+          let count = 0;
+          let node: Node | null;
+          while ((node = walker.nextNode())) {
+            if (node === range.startContainer) {
+              savedTextOffsetInDom = count + range.startOffset;
+              break;
+            }
+            count += (node as Text).length;
+          }
+        }
+
         // 计算工具栏位置
         const rect = range.getBoundingClientRect();
         const previewRect = previewEl.getBoundingClientRect();
@@ -1109,6 +1127,49 @@ export default function CodeEditor() {
           left: rect.left - previewRect.left + rect.width / 2,
         });
         setShowPreviewToolbar(true);
+
+        // React 重渲染后恢复选区（通过文本节点重新定位，避免 DOM 替换导致失效）
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            try {
+              const newBodyEl = previewEl.querySelector(".markdown-body");
+              if (!newBodyEl) return;
+              const walker = document.createTreeWalker(newBodyEl, NodeFilter.SHOW_TEXT);
+              let charCount = 0;
+              let startNode: Text | null = null;
+              let startOffsetInNode = 0;
+              let endNode: Text | null = null;
+              let endOffsetInNode = 0;
+              let node: Node | null;
+              const endPos = savedTextOffsetInDom + savedSelectedText.length;
+              while ((node = walker.nextNode())) {
+                const text = node as Text;
+                const textLen = text.length;
+                const nodeEnd = charCount + textLen;
+                if (!startNode && savedTextOffsetInDom >= charCount && savedTextOffsetInDom < nodeEnd) {
+                  startNode = text;
+                  startOffsetInNode = savedTextOffsetInDom - charCount;
+                }
+                if (!endNode && endPos >= charCount && endPos <= nodeEnd) {
+                  endNode = text;
+                  endOffsetInNode = endPos - charCount;
+                  break;
+                }
+                charCount = nodeEnd;
+              }
+              if (startNode && endNode) {
+                const newRange = document.createRange();
+                newRange.setStart(startNode, startOffsetInNode);
+                newRange.setEnd(endNode, endOffsetInNode);
+                const sel = window.getSelection();
+                if (sel) {
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+                }
+              }
+            } catch {}
+          });
+        });
       }, 0);
     };
 
