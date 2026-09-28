@@ -25,12 +25,14 @@ import {
   Link2,
   PanelLeftClose,
   FolderTree,
+  Volume2,
 } from "lucide-react";
 import type { Category, Snippet } from "@/types";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import UploadModal from "@/components/UploadModal";
 import LanguageSettingsModal from "@/components/LanguageSettingsModal";
+import TTSSettingsModal from "@/components/TTSSettingsModal";
 
 type ViewMode = "all" | "favorites";
 
@@ -76,6 +78,7 @@ export default function CategoryTree() {
   const [plusDropdownId, setPlusDropdownId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showLangSettings, setShowLangSettings] = useState(false);
+  const [showTTSSettings, setShowTTSSettings] = useState(false);
   const [uploadParentId, setUploadParentId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -908,6 +911,13 @@ export default function CategoryTree() {
             <Settings size={15} />
           </button>
           <button
+            onClick={() => setShowTTSSettings(true)}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-primary-50 text-slate-500 hover:text-primary-500 transition-colors"
+            title="朗读设置"
+          >
+            <Volume2 size={15} />
+          </button>
+          <button
             onClick={() => openSnippetModal(selectedCategoryId)}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-primary-50 text-slate-500 hover:text-primary-500 transition-colors"
             title="新建代码片段"
@@ -1639,6 +1649,11 @@ export default function CategoryTree() {
       <LanguageSettingsModal
         isOpen={showLangSettings}
         onClose={() => setShowLangSettings(false)}
+      />
+
+      <TTSSettingsModal
+        isOpen={showTTSSettings}
+        onClose={() => setShowTTSSettings(false)}
       />
 
     </div>

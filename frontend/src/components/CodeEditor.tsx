@@ -49,7 +49,10 @@ import {
   Maximize2,
   Minimize2,
   Crosshair,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+import { speakText, stopTTS, isTTSPlaying } from "@/lib/tts";
 import type { Annotation } from "@/types";
 import {
   downloadMarkdown,
@@ -1294,6 +1297,27 @@ export default function CodeEditor() {
     }
   };
 
+  // TTS 朗读选中文本
+  const [ttsStatus, setTtsStatus] = useState<"idle" | "loading" | "playing">("idle");
+
+  const handleSpeakSelection = async (text: string) => {
+    if (ttsStatus === "loading" || ttsStatus === "playing") {
+      stopTTS();
+      setTtsStatus("idle");
+      return;
+    }
+    try {
+      await speakText(text, (status) => {
+        if (status === "loading") setTtsStatus("loading");
+        else if (status === "playing") setTtsStatus("playing");
+        else setTtsStatus("idle");
+      });
+    } catch (e: any) {
+      setTtsStatus("idle");
+      alert("朗读失败: " + e.message);
+    }
+  };
+
   // 切换语言
   const handleLanguageChange = (lang: string) => {
     if (!snippet) return;
@@ -1575,6 +1599,23 @@ export default function CodeEditor() {
                   e.preventDefault();
                 }}
               >
+                <button
+                  onClick={() => {
+                    const text = debouncedContent.slice(
+                      previewSelectionRange!.from,
+                      previewSelectionRange!.to
+                    );
+                    handleSpeakSelection(text);
+                  }}
+                  title={ttsStatus === "playing" || ttsStatus === "loading" ? "停止朗读" : "朗读"}
+                >
+                  {ttsStatus === "playing" || ttsStatus === "loading" ? (
+                    <VolumeX size={12} style={{ display: "inline-block", marginRight: 3, verticalAlign: "middle" }} />
+                  ) : (
+                    <Volume2 size={12} style={{ display: "inline-block", marginRight: 3, verticalAlign: "middle" }} />
+                  )}
+                  {ttsStatus === "playing" || ttsStatus === "loading" ? "停止" : "朗读"}
+                </button>
                 <button onClick={handlePreviewAddAnnotation}>
                   <Plus size={12} style={{ display: "inline-block", marginRight: 3, verticalAlign: "middle" }} />
                   添加注释
@@ -1591,6 +1632,23 @@ export default function CodeEditor() {
             style={{ top: toolbarPos.top, left: toolbarPos.left }}
             onClick={(e) => e.stopPropagation()}
           >
+            <button
+              onClick={() => {
+                const text = viewRef.current?.state.sliceDoc(
+                  selectionRange.from,
+                  selectionRange.to
+                ) || "";
+                handleSpeakSelection(text);
+              }}
+              title={ttsStatus === "playing" || ttsStatus === "loading" ? "停止朗读" : "朗读"}
+            >
+              {ttsStatus === "playing" || ttsStatus === "loading" ? (
+                <VolumeX size={12} style={{ display: "inline-block", marginRight: 3, verticalAlign: "middle" }} />
+              ) : (
+                <Volume2 size={12} style={{ display: "inline-block", marginRight: 3, verticalAlign: "middle" }} />
+              )}
+              {ttsStatus === "playing" || ttsStatus === "loading" ? "停止" : "朗读"}
+            </button>
             <button onClick={handleAddAnnotation}>
               <Plus size={12} style={{ display: "inline-block", marginRight: 3, verticalAlign: "middle" }} />
               添加注释
