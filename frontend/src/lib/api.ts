@@ -198,6 +198,16 @@ export const languageApi = {
     request<void>(`/languages/${id}`, { method: "DELETE" }),
 };
 
+// --- User Config ---
+export const configApi = {
+  get: () => request<any>("/config"),
+  update: (data: { ttsEndpoint?: string; ttsTimeout?: number }) =>
+    request<any>("/config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+};
+
 // --- Import ---
 export const importApi = {
   importFolder: async (files: File[], paths: string[], parentCategoryId: string | null): Promise<{ importedSnippets: number; createdCategories: number; skippedFiles: number }> => {

@@ -11,6 +11,7 @@ C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-proje
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\controller\LanguageConfigController.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\controller\SearchController.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\controller\SnippetController.java
+C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\controller\UserConfigController.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\dto\AnnotationRequest.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\dto\AuthResponse.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\dto\CategoryRequest.java
@@ -18,15 +19,18 @@ C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-proje
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\dto\LoginRequest.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\dto\RegisterRequest.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\dto\SnippetRequest.java
+C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\dto\UserConfigRequest.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\entity\Annotation.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\entity\Category.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\entity\LanguageConfig.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\entity\Snippet.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\entity\User.java
+C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\entity\UserConfig.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\repository\AnnotationRepository.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\repository\CategoryRepository.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\repository\LanguageConfigRepository.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\repository\SnippetRepository.java
+C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\repository\UserConfigRepository.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\repository\UserRepository.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\security\JwtAuthenticationFilter.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\security\JwtTokenProvider.java
@@ -37,3 +41,4 @@ C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-proje
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\service\ImportService.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\service\LanguageConfigService.java
 C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\service\SnippetService.java
+C:\Users\admin\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a9265097db7f0ef5ac0b8da\backend\src\main\java\com\codenote\service\UserConfigService.java

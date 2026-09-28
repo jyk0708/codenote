@@ -14,21 +14,34 @@ export default function TTSSettingsModal({ isOpen, onClose }: Props) {
     endpoint: "",
     timeout: 30000,
   });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string>("");
 
   useEffect(() => {
     if (isOpen) {
-      setConfig(getTTSConfig());
+      setLoading(true);
       setTestResult("");
+      getTTSConfig().then((cfg) => {
+        setConfig(cfg);
+        setLoading(false);
+      }).catch(() => setLoading(false));
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    saveTTSConfig(config);
-    onClose();
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await saveTTSConfig(config);
+      onClose();
+    } catch (e: any) {
+      alert("保存失败: " + e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleTest = async () => {
@@ -59,7 +72,6 @@ export default function TTSSettingsModal({ isOpen, onClose }: Props) {
           setTestResult("接口返回空音频");
         } else {
           setTestResult(`测试成功！返回 ${blob.size} 字节音频`);
-          // 试听一下
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
           audio.onended = () => URL.revokeObjectURL(url);
@@ -97,53 +109,61 @@ export default function TTSSettingsModal({ isOpen, onClose }: Props) {
         </div>
 
         <div className="p-4 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">
-              TTS 接口地址
-            </label>
-            <input
-              type="text"
-              value={config.endpoint}
-              onChange={(e) => setConfig({ ...config, endpoint: e.target.value })}
-              placeholder="例如: http://192.168.1.109:9999/tts"
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              支持返回 MP3 音频流的 POST 接口，请求体格式: {"{\"text\": \"要朗读的文本\"}"}
-            </p>
-          </div>
+          {loading && (
+            <div className="text-center text-slate-500 text-sm py-4">加载中...</div>
+          )}
 
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">
-              超时时间（秒）
-            </label>
-            <input
-              type="number"
-              min={5}
-              max={120}
-              value={config.timeout / 1000}
-              onChange={(e) => setConfig({ ...config, timeout: Math.max(5, Math.min(120, parseInt(e.target.value) || 30)) * 1000 })}
-              className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              请求超时后自动取消，默认 30 秒
-            </p>
-          </div>
+          {!loading && (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  TTS 接口地址
+                </label>
+                <input
+                  type="text"
+                  value={config.endpoint}
+                  onChange={(e) => setConfig({ ...config, endpoint: e.target.value })}
+                  placeholder="例如: http://192.168.1.109:9999/tts"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  支持返回 MP3 音频流的 POST 接口，请求体格式: {"{\"text\": \"要朗读的文本\"}"}
+                </p>
+              </div>
 
-          <div className="pt-2 border-t border-slate-100">
-            <button
-              onClick={handleTest}
-              disabled={testing || !config.endpoint}
-              className="text-sm text-indigo-600 hover:text-indigo-800 disabled:text-slate-400"
-            >
-              {testing ? "测试中..." : "测试连接"}
-            </button>
-            {testResult && (
-              <p className={`text-xs mt-1 ${testResult.includes("成功") ? "text-emerald-600" : "text-rose-600"}`}>
-                {testResult}
-              </p>
-            )}
-          </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  超时时间（秒）
+                </label>
+                <input
+                  type="number"
+                  min={5}
+                  max={120}
+                  value={config.timeout / 1000}
+                  onChange={(e) => setConfig({ ...config, timeout: Math.max(5, Math.min(120, parseInt(e.target.value) || 30)) * 1000 })}
+                  className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  请求超时后自动取消，默认 30 秒
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  onClick={handleTest}
+                  disabled={testing || !config.endpoint}
+                  className="text-sm text-indigo-600 hover:text-indigo-800 disabled:text-slate-400"
+                >
+                  {testing ? "测试中..." : "测试连接"}
+                </button>
+                {testResult && (
+                  <p className={`text-xs mt-1 ${testResult.includes("成功") ? "text-emerald-600" : "text-rose-600"}`}>
+                    {testResult}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-200 bg-slate-50">
@@ -155,9 +175,10 @@ export default function TTSSettingsModal({ isOpen, onClose }: Props) {
           </button>
           <button
             onClick={handleSave}
-            className="px-3 py-1.5 text-sm bg-indigo-600 text-white hover:bg-indigo-700 rounded-md"
+            disabled={saving || loading}
+            className="px-3 py-1.5 text-sm bg-indigo-600 text-white hover:bg-indigo-700 rounded-md disabled:opacity-50"
           >
-            保存
+            {saving ? "保存中..." : "保存"}
           </button>
         </div>
       </div>

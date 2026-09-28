@@ -1,6 +1,7 @@
 com\codenote\service\SnippetService.class
 com\codenote\service\FileStorageService.class
 com\codenote\entity\User$UserBuilder.class
+com\codenote\repository\UserConfigRepository.class
 com\codenote\repository\AnnotationRepository.class
 com\codenote\entity\Snippet$SnippetBuilder.class
 com\codenote\controller\SearchController.class
@@ -12,7 +13,9 @@ com\codenote\controller\ImportController.class
 com\codenote\controller\AnnotationController.class
 com\codenote\dto\AnnotationRequest.class
 com\codenote\controller\AuthController.class
+com\codenote\service\UserConfigService.class
 com\codenote\repository\LanguageConfigRepository.class
+com\codenote\dto\UserConfigRequest.class
 com\codenote\entity\LanguageConfig$LanguageConfigBuilder.class
 com\codenote\dto\LoginRequest.class
 com\codenote\entity\LanguageConfig.class
@@ -24,11 +27,13 @@ com\codenote\dto\AuthResponse.class
 com\codenote\service\CategoryService.class
 com\codenote\service\LanguageConfigService.class
 com\codenote\security\JwtTokenProvider.class
+com\codenote\controller\UserConfigController.class
 com\codenote\service\AnnotationService.class
 com\codenote\repository\SnippetRepository.class
 com\codenote\controller\HealthController.class
 com\codenote\service\AuthService.class
 com\codenote\entity\Category$CategoryBuilder.class
+com\codenote\entity\UserConfig.class
 com\codenote\entity\Annotation.class
 com\codenote\security\JwtAuthenticationFilter.class
 com\codenote\service\ImportService.class
@@ -36,6 +41,7 @@ com\codenote\dto\SnippetRequest.class
 com\codenote\repository\CategoryRepository.class
 com\codenote\entity\Annotation$AnnotationBuilder.class
 com\codenote\service\ImportService$FileWithPath.class
+com\codenote\entity\UserConfig$UserConfigBuilder.class
 com\codenote\dto\LanguageConfigRequest.class
 com\codenote\config\SecurityConfig.class
 com\codenote\dto\RegisterRequest.class

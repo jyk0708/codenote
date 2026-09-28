@@ -1,5 +1,5 @@
-// TTS 朗读工具
-const TTS_CONFIG_KEY = "codenote_tts_config";
+// TTS 朗读工具 - 配置存储在后端数据库
+import { configApi } from "@/lib/api";
 
 export interface TTSConfig {
   endpoint: string; // TTS 接口地址，如 http://192.168.1.109:9999/tts
@@ -11,21 +11,45 @@ const DEFAULT_CONFIG: TTSConfig = {
   timeout: 30000,
 };
 
-export function getTTSConfig(): TTSConfig {
-  try {
-    const raw = localStorage.getItem(TTS_CONFIG_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return { ...DEFAULT_CONFIG, ...parsed };
+// 内存缓存，避免每次朗读都请求
+let cachedConfig: TTSConfig | null = null;
+let configPromise: Promise<TTSConfig> | null = null;
+
+export async function getTTSConfig(): Promise<TTSConfig> {
+  if (cachedConfig) return cachedConfig;
+  if (configPromise) return configPromise;
+
+  configPromise = (async () => {
+    try {
+      const data = await configApi.get();
+      const cfg: TTSConfig = {
+        endpoint: data.ttsEndpoint || "",
+        timeout: data.ttsTimeout || 30000,
+      };
+      cachedConfig = cfg;
+      return cfg;
+    } catch (e) {
+      cachedConfig = { ...DEFAULT_CONFIG };
+      return cachedConfig;
+    } finally {
+      configPromise = null;
     }
-  } catch {}
-  return { ...DEFAULT_CONFIG };
+  })();
+
+  return configPromise;
 }
 
-export function saveTTSConfig(config: Partial<TTSConfig>): void {
-  const current = getTTSConfig();
-  const next = { ...current, ...config };
-  localStorage.setItem(TTS_CONFIG_KEY, JSON.stringify(next));
+export async function saveTTSConfig(config: Partial<TTSConfig>): Promise<TTSConfig> {
+  const data = await configApi.update({
+    ttsEndpoint: config.endpoint,
+    ttsTimeout: config.timeout,
+  });
+  const cfg: TTSConfig = {
+    endpoint: data.ttsEndpoint || "",
+    timeout: data.ttsTimeout || 30000,
+  };
+  cachedConfig = cfg;
+  return cfg;
 }
 
 // 当前播放的音频，用于停止
@@ -62,7 +86,7 @@ export async function speakText(
     throw new Error("没有选中文本");
   }
 
-  const config = getTTSConfig();
+  const config = await getTTSConfig();
   if (!config.endpoint) {
     throw new Error("请先在设置中配置 TTS 接口地址");
   }
